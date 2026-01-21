@@ -454,7 +454,20 @@ export const CustomersPage = () => {
               
               {/* Transaction History */}
               <div>
-                <h3 className="font-secondary text-lg text-white mb-3">Riwayat Transaksi</h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-secondary text-lg text-white">Riwayat Transaksi</h3>
+                  {customerTransactions.length > 0 && (
+                    <Button
+                      onClick={handleExportCustomerTransactions}
+                      size="sm"
+                      data-testid="export-customer-transactions-button"
+                      className="bg-zinc-800 text-white hover:bg-zinc-700"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Export
+                    </Button>
+                  )}
+                </div>
                 {customerTransactions.length > 0 ? (
                   <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
                     {customerTransactions.map((tx) => (
@@ -466,9 +479,16 @@ export const CustomersPage = () => {
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-zinc-400">
-                            {tx.items.map(i => i.service_name).join(', ')}
-                          </span>
+                          <div className="flex-1">
+                            <span className="text-sm text-zinc-400">
+                              {tx.items.map(i => i.service_name).join(', ')}
+                            </span>
+                            {tx.payment_method === 'subscription' && (
+                              <span className="ml-2 px-2 py-0.5 bg-[#D4AF37]/20 text-[#D4AF37] text-xs rounded">
+                                Member
+                              </span>
+                            )}
+                          </div>
                           <span className="font-mono font-semibold text-white">
                             Rp {tx.total.toLocaleString('id-ID')}
                           </span>
