@@ -374,6 +374,13 @@ async def register(user_data: UserCreate):
         raise HTTPException(status_code=400, detail="Username already exists")
     
     user_dict = user_data.model_dump(exclude={'password'})
+    
+    # If outlet_id is provided, get outlet_name
+    if user_dict.get('outlet_id'):
+        outlet = await db.outlets.find_one({"id": user_dict['outlet_id']}, {"_id": 0})
+        if outlet:
+            user_dict['outlet_name'] = outlet['name']
+    
     user = User(**user_dict)
     
     doc = user.model_dump()
