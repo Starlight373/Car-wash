@@ -900,7 +900,14 @@ async def create_transaction(transaction_data: TransactionCreate, current_user: 
 
 @api_router.get("/transactions")
 async def get_transactions(current_user: User = Depends(get_current_user)):
-    transactions = await db.transactions.find({}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    # Kasir only see their own transactions
+    if current_user.role == UserRole.KASIR:
+        query = {"kasir_id": current_user.id}
+    else:
+        # Owner, Manager, Teknisi can see all
+        query = {}
+    
+    transactions = await db.transactions.find(query, {"_id": 0}).sort("created_at", -1).to_list(1000)
     for transaction in transactions:
         if isinstance(transaction.get('created_at'), str):
             transaction['created_at'] = datetime.fromisoformat(transaction['created_at'])
@@ -909,16 +916,35 @@ async def get_transactions(current_user: User = Depends(get_current_user)):
 @api_router.get("/transactions/today")
 async def get_today_transactions(current_user: User = Depends(get_current_user)):
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-    transactions = await db.transactions.find(
-        {"created_at": {"$gte": today_start.isoformat()}},
-        {"_id": 0}
-    ).to_list(1000)
+    
+    # Kasir only see their own transactions
+    if current_user.role == UserRole.KASIR:
+        query = {"created_at": {"$gte": today_start.isoformat()}, "kasir_id": current_user.id}
+    else:
+        query = {"created_at": {"$gte": today_start.isoformat()}}
+    
+    transactions = await db.transactions.find(query, {"_id": 0}).to_list(1000)
     
     for transaction in transactions:
         if isinstance(transaction.get('created_at'), str):
             transaction['created_at'] = datetime.fromisoformat(transaction['created_at'])
     
     return transactions
+
+@api_router.get("/transactions/{transaction_id}")
+async def get_transaction_detail(transaction_id: str, current_user: User = Depends(get_current_user)):
+    transaction = await db.transactions.find_one({"id": transaction_id}, {"_id": 0})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Kasir can only see their own transaction
+    if current_user.role == UserRole.KASIR and transaction['kasir_id'] != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to view this transaction")
+    
+    if isinstance(transaction.get('created_at'), str):
+        transaction['created_at'] = datetime.fromisoformat(transaction['created_at'])
+    
+    return transaction
 
 # Routes - Dashboard
 @api_router.get("/dashboard/stats")
