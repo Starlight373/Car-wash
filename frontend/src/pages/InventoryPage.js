@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import api from '../utils/api';
-import { Plus, Download, AlertTriangle, Package } from 'lucide-react';
+import { Plus, Download, AlertTriangle, Package, Pencil, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import {
@@ -20,11 +20,17 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { exportToExcel } from '../utils/excelExport';
+import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog';
 
 export const InventoryPage = () => {
   const [items, setItems] = useState([]);
   const [lowStockItems, setLowStockItems] = useState([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [loading, setLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     sku: '',
     name: '',
@@ -60,7 +66,22 @@ export const InventoryPage = () => {
     }
   };
   
+  const resetForm = () => {
+    setFormData({
+      sku: '',
+      name: '',
+      category: '',
+      unit: '',
+      current_stock: '',
+      min_stock: '',
+      max_stock: '',
+      unit_cost: '',
+      supplier: '',
+    });
+  };
+  
   const handleAddItem = async () => {
+    setLoading(true);
     try {
       await api.post('/inventory', {
         ...formData,
@@ -71,21 +92,67 @@ export const InventoryPage = () => {
       });
       toast.success('Item berhasil ditambahkan');
       setShowAddDialog(false);
-      setFormData({
-        sku: '',
-        name: '',
-        category: '',
-        unit: '',
-        current_stock: '',
-        min_stock: '',
-        max_stock: '',
-        unit_cost: '',
-        supplier: '',
-      });
+      resetForm();
       fetchInventory();
       fetchLowStock();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Gagal menambahkan item');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleEdit = (item) => {
+    setEditingItem(item);
+    setFormData({
+      sku: item.sku,
+      name: item.name,
+      category: item.category,
+      unit: item.unit,
+      current_stock: item.current_stock.toString(),
+      min_stock: item.min_stock.toString(),
+      max_stock: item.max_stock.toString(),
+      unit_cost: item.unit_cost.toString(),
+      supplier: item.supplier || '',
+    });
+    setShowEditDialog(true);
+  };
+  
+  const handleSaveEdit = async () => {
+    setLoading(true);
+    try {
+      await api.put(`/inventory/${editingItem.id}`, {
+        ...formData,
+        current_stock: parseFloat(formData.current_stock),
+        min_stock: parseFloat(formData.min_stock),
+        max_stock: parseFloat(formData.max_stock),
+        unit_cost: parseFloat(formData.unit_cost),
+      });
+      toast.success('Item berhasil diupdate');
+      setShowEditDialog(false);
+      setEditingItem(null);
+      resetForm();
+      fetchInventory();
+      fetchLowStock();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Gagal update item');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDelete = async () => {
+    setLoading(true);
+    try {
+      await api.delete(`/inventory/${deleteTarget.id}`);
+      toast.success('Item berhasil dihapus');
+      setDeleteTarget(null);
+      fetchInventory();
+      fetchLowStock();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Gagal menghapus item');
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -115,6 +182,121 @@ export const InventoryPage = () => {
     return items.reduce((sum, item) => sum + (item.current_stock * item.unit_cost), 0);
   };
   
+  const renderFormFields = () => (
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <Label className="text-zinc-400 mb-2">SKU *</Label>
+        <Input
+          value={formData.sku}
+          onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
+          data-testid="sku-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
+          placeholder="CHEM-001"
+          disabled={!!editingItem}
+        />
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Nama Produk *</Label>
+        <Input
+          value={formData.name}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          data-testid="name-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white"
+          placeholder="Car Shampoo"
+        />
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Kategori *</Label>
+        <Select
+          value={formData.category}
+          onValueChange={(value) => setFormData({ ...formData, category: value })}
+        >
+          <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white" data-testid="category-select">
+            <SelectValue placeholder="Pilih kategori" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="chemicals">Chemicals</SelectItem>
+            <SelectItem value="supplies">Supplies</SelectItem>
+            <SelectItem value="equipment_parts">Equipment Parts</SelectItem>
+            <SelectItem value="accessories">Accessories</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Unit *</Label>
+        <Select
+          value={formData.unit}
+          onValueChange={(value) => setFormData({ ...formData, unit: value })}
+        >
+          <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white" data-testid="unit-select">
+            <SelectValue placeholder="Pilih unit" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="liter">Liter</SelectItem>
+            <SelectItem value="kg">Kg</SelectItem>
+            <SelectItem value="pcs">Pcs</SelectItem>
+            <SelectItem value="ml">ML</SelectItem>
+            <SelectItem value="gram">Gram</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Stok Saat Ini *</Label>
+        <Input
+          type="number"
+          value={formData.current_stock}
+          onChange={(e) => setFormData({ ...formData, current_stock: e.target.value })}
+          data-testid="stock-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
+          placeholder="0"
+        />
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Min Stock *</Label>
+        <Input
+          type="number"
+          value={formData.min_stock}
+          onChange={(e) => setFormData({ ...formData, min_stock: e.target.value })}
+          data-testid="min-stock-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
+          placeholder="0"
+        />
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Max Stock *</Label>
+        <Input
+          type="number"
+          value={formData.max_stock}
+          onChange={(e) => setFormData({ ...formData, max_stock: e.target.value })}
+          data-testid="max-stock-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
+          placeholder="0"
+        />
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">HPP per Unit *</Label>
+        <Input
+          type="number"
+          value={formData.unit_cost}
+          onChange={(e) => setFormData({ ...formData, unit_cost: e.target.value })}
+          data-testid="hpp-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
+          placeholder="0"
+        />
+      </div>
+      <div className="col-span-2">
+        <Label className="text-zinc-400 mb-2">Supplier</Label>
+        <Input
+          value={formData.supplier}
+          onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+          data-testid="supplier-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white"
+          placeholder="Nama supplier"
+        />
+      </div>
+    </div>
+  );
+  
   return (
     <Layout>
       <div className="animate-fade-in" data-testid="inventory-page">
@@ -133,7 +315,7 @@ export const InventoryPage = () => {
               Export Excel
             </Button>
             <Button
-              onClick={() => setShowAddDialog(true)}
+              onClick={() => { resetForm(); setShowAddDialog(true); }}
               data-testid="add-inventory-button"
               className="bg-[#D4AF37] text-black hover:bg-[#B5952F]"
             >
@@ -213,6 +395,7 @@ export const InventoryPage = () => {
                   <th>Total Nilai</th>
                   <th>Supplier</th>
                   <th>Status</th>
+                  <th>Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -254,6 +437,28 @@ export const InventoryPage = () => {
                           </span>
                         )}
                       </td>
+                      <td>
+                        <div className="flex gap-1">
+                          <Button
+                            onClick={() => handleEdit(item)}
+                            size="sm"
+                            variant="ghost"
+                            data-testid={`edit-${item.id}`}
+                            className="h-8 w-8 p-0 text-zinc-400 hover:text-white"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => setDeleteTarget(item)}
+                            size="sm"
+                            variant="ghost"
+                            data-testid={`delete-${item.id}`}
+                            className="h-8 w-8 p-0 text-zinc-400 hover:text-red-500"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -275,121 +480,45 @@ export const InventoryPage = () => {
           <DialogHeader>
             <DialogTitle className="font-secondary text-2xl">Tambah Item Inventory</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label className="text-zinc-400 mb-2">SKU *</Label>
-              <Input
-                value={formData.sku}
-                onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                data-testid="sku-input"
-                className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
-                placeholder="CHEM-001"
-              />
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Nama Produk *</Label>
-              <Input
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                data-testid="name-input"
-                className="bg-zinc-900/50 border-zinc-800 text-white"
-                placeholder="Car Shampoo"
-              />
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Kategori *</Label>
-              <Select
-                value={formData.category}
-                onValueChange={(value) => setFormData({ ...formData, category: value })}
-              >
-                <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white">
-                  <SelectValue placeholder="Pilih kategori" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="chemicals">Chemicals</SelectItem>
-                  <SelectItem value="supplies">Supplies</SelectItem>
-                  <SelectItem value="equipment_parts">Equipment Parts</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Unit *</Label>
-              <Select
-                value={formData.unit}
-                onValueChange={(value) => setFormData({ ...formData, unit: value })}
-              >
-                <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white">
-                  <SelectValue placeholder="Pilih unit" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="liter">Liter</SelectItem>
-                  <SelectItem value="kg">Kg</SelectItem>
-                  <SelectItem value="pcs">Pcs</SelectItem>
-                  <SelectItem value="ml">ML</SelectItem>
-                  <SelectItem value="gram">Gram</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Stok Saat Ini *</Label>
-              <Input
-                type="number"
-                value={formData.current_stock}
-                onChange={(e) => setFormData({ ...formData, current_stock: e.target.value })}
-                className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Min Stock *</Label>
-              <Input
-                type="number"
-                value={formData.min_stock}
-                onChange={(e) => setFormData({ ...formData, min_stock: e.target.value })}
-                className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Max Stock *</Label>
-              <Input
-                type="number"
-                value={formData.max_stock}
-                onChange={(e) => setFormData({ ...formData, max_stock: e.target.value })}
-                className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">HPP per Unit *</Label>
-              <Input
-                type="number"
-                value={formData.unit_cost}
-                onChange={(e) => setFormData({ ...formData, unit_cost: e.target.value })}
-                className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
-                placeholder="0"
-              />
-            </div>
-            <div className="col-span-2">
-              <Label className="text-zinc-400 mb-2">Supplier</Label>
-              <Input
-                value={formData.supplier}
-                onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
-                className="bg-zinc-900/50 border-zinc-800 text-white"
-                placeholder="Nama supplier"
-              />
-            </div>
-          </div>
+          {renderFormFields()}
           <Button
             onClick={handleAddItem}
-            disabled={!formData.sku || !formData.name || !formData.category || !formData.unit || !formData.current_stock || !formData.min_stock || !formData.max_stock || !formData.unit_cost}
+            disabled={loading || !formData.sku || !formData.name || !formData.category || !formData.unit || !formData.current_stock || !formData.min_stock || !formData.max_stock || !formData.unit_cost}
             data-testid="submit-inventory-button"
             className="w-full bg-[#D4AF37] text-black hover:bg-[#B5952F] font-bold uppercase mt-4"
           >
-            Tambah Item
+            {loading ? 'Menyimpan...' : 'Tambah Item'}
           </Button>
         </DialogContent>
       </Dialog>
+      
+      {/* Edit Item Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="bg-[#121214] border-zinc-800 text-white max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-secondary text-2xl">Edit Item Inventory</DialogTitle>
+          </DialogHeader>
+          {renderFormFields()}
+          <Button
+            onClick={handleSaveEdit}
+            disabled={loading}
+            data-testid="save-edit-inventory-button"
+            className="w-full bg-[#D4AF37] text-black hover:bg-[#B5952F] font-bold uppercase mt-4"
+          >
+            {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
+          </Button>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Confirmation */}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={loading}
+        title="Hapus Item?"
+        description={deleteTarget ? `Item "${deleteTarget.name}" akan dihapus secara permanen dari inventory.` : ''}
+      />
     </Layout>
   );
 };
