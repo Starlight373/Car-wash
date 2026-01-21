@@ -945,10 +945,30 @@ async def create_product(product_data: ProductCreate, current_user: User = Depen
     await db.products.insert_one(doc)
     return product
 
-@api_router.get("/products", response_model=List[Product])
+@api_router.get("/products")
 async def get_products(current_user: User = Depends(get_current_user)):
     products = await db.products.find({"is_active": True}, {"_id": 0}).to_list(1000)
+    # Add stock info from inventory
+    for product in products:
+        if product.get('inventory_id'):
+            inventory_item = await db.inventory.find_one({"id": product['inventory_id']}, {"_id": 0})
+            if inventory_item:
+                product['stock'] = inventory_item.get('current_stock', 0)
+                product['unit'] = inventory_item.get('unit', 'pcs')
+            else:
+                product['stock'] = None
+                product['unit'] = None
+        else:
+            product['stock'] = None
+            product['unit'] = None
     return products
+
+@api_router.get("/products/{product_id}")
+async def get_product(product_id: str, current_user: User = Depends(get_current_user)):
+    product = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
 
 @api_router.put("/products/{product_id}", response_model=Product)
 async def update_product(product_id: str, product_data: ProductUpdate, current_user: User = Depends(get_current_user)):
