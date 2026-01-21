@@ -382,6 +382,51 @@ async def get_users(current_user: User = Depends(get_current_user)):
             user['created_at'] = datetime.fromisoformat(user['created_at'])
     return users
 
+@api_router.put("/users/{user_id}")
+async def update_user(user_id: str, update_data: dict, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Don't allow updating password through this endpoint
+    if 'password' in update_data or 'password_hash' in update_data:
+        raise HTTPException(status_code=400, detail="Use password reset endpoint to change password")
+    
+    allowed_fields = ['full_name', 'email', 'phone', 'role', 'is_active']
+    filtered_data = {k: v for k, v in update_data.items() if k in allowed_fields}
+    
+    if filtered_data:
+        await db.users.update_one({"id": user_id}, {"$set": filtered_data})
+        user.update(filtered_data)
+    
+    user.pop('password_hash', None)
+    if isinstance(user.get('created_at'), str):
+        user['created_at'] = datetime.fromisoformat(user['created_at'])
+    
+    return user
+
+@api_router.delete("/users/{user_id}")
+async def delete_user(user_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.role != UserRole.OWNER:
+        raise HTTPException(status_code=403, detail="Only owner can delete users")
+    
+    if user_id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    # Check if user has open shifts
+    open_shift = await db.shifts.find_one({"kasir_id": user_id, "status": "open"})
+    if open_shift:
+        raise HTTPException(status_code=400, detail="User has open shift. Please close shift first.")
+    
+    result = await db.users.update_one({"id": user_id}, {"$set": {"is_active": False}})
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User deactivated successfully"}
+
 # Routes - Shifts
 @api_router.post("/shifts/open", response_model=Shift)
 async def open_shift(shift_data: ShiftOpen, current_user: User = Depends(get_current_user)):
