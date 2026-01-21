@@ -497,6 +497,24 @@ async def update_customer(customer_id: str, customer_data: CustomerUpdate, curre
     
     return Customer(**customer)
 
+@api_router.delete("/customers/{customer_id}")
+async def delete_customer(customer_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Check if customer has active memberships
+    memberships = await db.memberships.find({"customer_id": customer_id}).to_list(10)
+    active_memberships = [m for m in memberships if datetime.fromisoformat(m['end_date'] if isinstance(m['end_date'], str) else m['end_date'].isoformat()) >= datetime.now(timezone.utc)]
+    
+    if active_memberships:
+        raise HTTPException(status_code=400, detail="Cannot delete customer with active memberships")
+    
+    result = await db.customers.delete_one({"id": customer_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    return {"message": "Customer deleted successfully"}
+
 @api_router.get("/customers/{customer_id}/transactions")
 async def get_customer_transactions(customer_id: str, current_user: User = Depends(get_current_user)):
     transactions = await db.transactions.find(
