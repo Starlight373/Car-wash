@@ -4,7 +4,17 @@ Sistem Point of Sale (POS) profesional untuk bisnis car wash dengan fitur lengka
 
 ## 🌟 Fitur Utama (Phase 1)
 
-### 1. Public Landing Page & Customer Self-Service ✨ NEW!
+### 1. Transaction History dengan Role-Based Access ⭐ NEW!
+- ✅ Halaman Transactions untuk melihat semua riwayat transaksi
+- ✅ **Kasir:** Hanya bisa lihat transaksi mereka sendiri
+- ✅ **Admin/Owner/Manager:** Bisa lihat semua transaksi dari semua kasir
+- ✅ Filter by date: Today, Week, Month, All
+- ✅ Search by invoice, customer name, atau kasir name
+- ✅ View detail transaction dengan breakdown items
+- ✅ Stats dashboard: total transaksi, revenue, average, payment breakdown
+- ✅ Export to Excel dengan filter yang aktif
+
+### 2. Public Landing Page & Customer Self-Service
 - ✅ Landing page promosi car wash untuk public
 - ✅ Display services dan paket membership
 - ✅ Customer dapat cek status membership sendiri (by phone number)
@@ -317,8 +327,9 @@ Sistem sudah di-seed dengan:
 
 ### Transactions
 - `POST /api/transactions` - Create transaction
-- `GET /api/transactions` - Get all transactions
-- `GET /api/transactions/today` - Get today's transactions
+- `GET /api/transactions` - Get all transactions (role-based: kasir only see their own)
+- `GET /api/transactions/today` - Get today's transactions (role-based)
+- `GET /api/transactions/{id}` - Get transaction detail (kasir can only see their own)
 
 ### Dashboard
 - `GET /api/dashboard/stats` - Get dashboard statistics
