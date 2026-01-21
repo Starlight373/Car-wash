@@ -393,7 +393,7 @@ async def get_users(current_user: User = Depends(get_current_user)):
     return users
 
 @api_router.put("/users/{user_id}")
-async def update_user(user_id: str, update_data: dict, current_user: User = Depends(get_current_user)):
+async def update_user(user_id: str, update_data: UserUpdate, current_user: User = Depends(get_current_user)):
     if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
         raise HTTPException(status_code=403, detail="Not authorized")
     
@@ -401,12 +401,7 @@ async def update_user(user_id: str, update_data: dict, current_user: User = Depe
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    # Don't allow updating password through this endpoint
-    if 'password' in update_data or 'password_hash' in update_data:
-        raise HTTPException(status_code=400, detail="Use password reset endpoint to change password")
-    
-    allowed_fields = ['full_name', 'email', 'phone', 'role', 'is_active']
-    filtered_data = {k: v for k, v in update_data.items() if k in allowed_fields}
+    filtered_data = {k: v for k, v in update_data.model_dump().items() if v is not None}
     
     if filtered_data:
         await db.users.update_one({"id": user_id}, {"$set": filtered_data})
@@ -417,6 +412,25 @@ async def update_user(user_id: str, update_data: dict, current_user: User = Depe
         user['created_at'] = datetime.fromisoformat(user['created_at'])
     
     return user
+
+@api_router.post("/users/{user_id}/reset-password")
+async def reset_user_password(user_id: str, password_data: PasswordReset, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    user = await db.users.find_one({"id": user_id}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Hash new password
+    new_password_hash = hash_password(password_data.new_password)
+    
+    await db.users.update_one(
+        {"id": user_id},
+        {"$set": {"password_hash": new_password_hash}}
+    )
+    
+    return {"message": "Password reset successfully"}
 
 @api_router.delete("/users/{user_id}")
 async def delete_user(user_id: str, current_user: User = Depends(get_current_user)):
