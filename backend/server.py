@@ -138,12 +138,14 @@ class Membership(BaseModel):
     usage_count: int = 0
     last_used: Optional[datetime] = None
     price: float
+    notes: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class MembershipCreate(BaseModel):
     customer_id: str
     membership_type: MembershipType
     price: float
+    notes: Optional[str] = None
 
 class Service(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -204,6 +206,7 @@ class Transaction(BaseModel):
     change_amount: float
     cogs: float = 0.0
     gross_margin: float = 0.0
+    notes: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class TransactionCreate(BaseModel):
@@ -211,6 +214,7 @@ class TransactionCreate(BaseModel):
     items: List[dict]
     payment_method: PaymentMethod
     payment_received: float
+    notes: Optional[str] = None
 
 # Helper Functions
 def hash_password(password: str) -> str:
@@ -541,7 +545,8 @@ async def create_transaction(transaction_data: TransactionCreate, current_user: 
         total=total,
         payment_method=transaction_data.payment_method,
         payment_received=transaction_data.payment_received,
-        change_amount=change_amount
+        change_amount=change_amount,
+        notes=transaction_data.notes
     )
     
     doc = transaction.model_dump()
