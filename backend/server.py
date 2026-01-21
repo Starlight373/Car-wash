@@ -874,6 +874,28 @@ async def create_transaction(transaction_data: TransactionCreate, current_user: 
             {"$inc": {"total_visits": 1, "total_spending": total}}
         )
     
+    # Deduct inventory based on items
+    for item in transaction_data.items:
+        # Check if it's a service with BOM
+        if item.get('service_id'):
+            service = await db.services.find_one({"id": item['service_id']}, {"_id": 0})
+            if service and service.get('bom') and len(service['bom']) > 0:
+                for bom_item in service['bom']:
+                    quantity_to_deduct = bom_item['quantity'] * item['quantity']
+                    await db.inventory.update_one(
+                        {"id": bom_item['inventory_id']},
+                        {"$inc": {"current_stock": -quantity_to_deduct}}
+                    )
+        
+        # Check if it's a product linked to inventory
+        elif item.get('product_id'):
+            product = await db.products.find_one({"id": item['product_id']}, {"_id": 0})
+            if product and product.get('inventory_id'):
+                await db.inventory.update_one(
+                    {"id": product['inventory_id']},
+                    {"$inc": {"current_stock": -item['quantity']}}
+                )
+    
     return transaction
 
 @api_router.get("/transactions")
