@@ -163,6 +163,35 @@ export const CustomersPage = () => {
     }
   };
   
+  const handleExportCustomerTransactions = () => {
+    if (!selectedCustomer || customerTransactions.length === 0) {
+      toast.error('Tidak ada transaksi untuk di-export');
+      return;
+    }
+    
+    const exportData = customerTransactions.map(tx => ({
+      'Invoice': tx.invoice_number,
+      'Tanggal': new Date(tx.created_at).toLocaleDateString('id-ID'),
+      'Waktu': new Date(tx.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      'Layanan/Produk': tx.items.map(i => i.service_name).join(', '),
+      'Total': tx.total,
+      'Metode Bayar': tx.payment_method === 'subscription' ? 'Member Subscription' : tx.payment_method.toUpperCase(),
+      'Kasir': tx.kasir_name,
+      'Catatan': tx.notes || '-',
+    }));
+    
+    const success = exportToExcel(
+      exportData, 
+      `transaksi-${selectedCustomer.name.replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}`, 
+      'Riwayat Transaksi'
+    );
+    if (success) {
+      toast.success('Riwayat transaksi berhasil di-export');
+    } else {
+      toast.error('Gagal export data');
+    }
+  };
+  
   const renderFormFields = () => (
     <div className="space-y-4">
       <div>
