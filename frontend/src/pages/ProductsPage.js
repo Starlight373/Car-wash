@@ -240,7 +240,7 @@ export const ProductsPage = () => {
             <SelectValue placeholder="Pilih item inventory (opsional)" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Tidak terhubung</SelectItem>
+            <SelectItem value="none">Tidak terhubung</SelectItem>
             {inventory.map((item) => (
               <SelectItem key={item.id} value={item.id}>
                 {item.name} ({item.current_stock} {item.unit})
