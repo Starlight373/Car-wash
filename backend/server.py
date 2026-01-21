@@ -631,6 +631,37 @@ async def get_membership_detail(membership_id: str, current_user: User = Depends
     
     return membership
 
+@api_router.put("/memberships/{membership_id}")
+async def extend_membership(membership_id: str, days: int, current_user: User = Depends(get_current_user)):
+    """Extend membership by X days"""
+    membership = await db.memberships.find_one({"id": membership_id}, {"_id": 0})
+    if not membership:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    
+    end_date = datetime.fromisoformat(membership['end_date']) if isinstance(membership['end_date'], str) else membership['end_date']
+    new_end_date = end_date + timedelta(days=days)
+    
+    await db.memberships.update_one(
+        {"id": membership_id},
+        {"$set": {"end_date": new_end_date.isoformat()}}
+    )
+    
+    return {"message": f"Membership extended by {days} days", "new_end_date": new_end_date.isoformat()}
+
+@api_router.delete("/memberships/{membership_id}")
+async def delete_membership(membership_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    result = await db.memberships.delete_one({"id": membership_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Membership not found")
+    
+    # Also delete usage history
+    await db.membership_usage.delete_many({"membership_id": membership_id})
+    
+    return {"message": "Membership deleted successfully"}
+
 @api_router.post("/memberships/use")
 async def record_membership_usage(usage_data: MembershipUsage, current_user: User = Depends(get_current_user)):
     # Find customer by phone
@@ -745,6 +776,16 @@ async def update_service(service_id: str, service_data: ServiceUpdate, current_u
         service.update(update_data)
     
     return Service(**service)
+
+@api_router.delete("/services/{service_id}")
+async def delete_service(service_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Soft delete by setting is_active to False
+    await db.services.update_one({"id": service_id}, {"$set": {"is_active": False}})
+    
+    return {"message": "Service deactivated successfully"}
 
 # Routes - Products
 @api_router.post("/products", response_model=Product)
