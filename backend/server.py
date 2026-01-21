@@ -126,6 +126,13 @@ class CustomerCreate(BaseModel):
     vehicle_number: Optional[str] = None
     vehicle_type: Optional[str] = None
 
+class CustomerUpdate(BaseModel):
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    vehicle_number: Optional[str] = None
+    vehicle_type: Optional[str] = None
+
 class Membership(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
