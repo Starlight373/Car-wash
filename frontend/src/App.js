@@ -7,6 +7,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { Dashboard } from "./pages/Dashboard";
 import { POSPage } from "./pages/POSPage";
 import { ShiftPage } from "./pages/ShiftPage";
+import { TransactionsPage } from "./pages/TransactionsPage";
 import { CustomersPage } from "./pages/CustomersPage";
 import { MembershipsPage } from "./pages/MembershipsPage";
 import { InventoryPage } from "./pages/InventoryPage";
@@ -51,6 +52,15 @@ function App() {
             element={
               <ProtectedRoute>
                 <ShiftPage />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/transactions"
+            element={
+              <ProtectedRoute>
+                <TransactionsPage />
               </ProtectedRoute>
             }
           />
