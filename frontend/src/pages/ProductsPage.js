@@ -233,8 +233,8 @@ export const ProductsPage = () => {
           Jika produk terhubung ke inventory, stok akan dikelola otomatis
         </p>
         <Select
-          value={formData.inventory_id}
-          onValueChange={(value) => setFormData({ ...formData, inventory_id: value })}
+          value={formData.inventory_id || 'none'}
+          onValueChange={(value) => setFormData({ ...formData, inventory_id: value === 'none' ? '' : value })}
         >
           <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white" data-testid="product-inventory-select">
             <SelectValue placeholder="Pilih item inventory (opsional)" />
