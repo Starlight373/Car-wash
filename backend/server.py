@@ -55,6 +55,7 @@ class PaymentMethod(str, Enum):
     CASH = "cash"
     CARD = "card"
     QR = "qr"
+    SUBSCRIPTION = "subscription"  # For member usage with Rp 0
 
 # Models
 class User(BaseModel):
