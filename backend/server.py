@@ -154,6 +154,10 @@ class MembershipCreate(BaseModel):
     price: float
     notes: Optional[str] = None
 
+class MembershipUsage(BaseModel):
+    phone: str
+    service_id: str
+
 class Service(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
