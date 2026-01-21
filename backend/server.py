@@ -898,6 +898,12 @@ async def get_inventory(current_user: User = Depends(get_current_user)):
             item['last_purchase_date'] = datetime.fromisoformat(item['last_purchase_date'])
     return items
 
+@api_router.get("/inventory/low-stock")
+async def get_low_stock(current_user: User = Depends(get_current_user)):
+    items = await db.inventory.find({}, {"_id": 0}).to_list(1000)
+    low_stock = [item for item in items if item['current_stock'] <= item['min_stock']]
+    return low_stock
+
 @api_router.get("/inventory/{item_id}", response_model=InventoryItem)
 async def get_inventory_item(item_id: str, current_user: User = Depends(get_current_user)):
     item = await db.inventory.find_one({"id": item_id}, {"_id": 0})
