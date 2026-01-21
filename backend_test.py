@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 class POSCarWashTester:
-    def __init__(self, base_url="https://washngo-system.preview.emergentagent.com"):
+    def __init__(self, base_url="https://sparklepay-1.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.tests_run = 0
