@@ -76,6 +76,16 @@ class UserCreate(BaseModel):
     role: UserRole
     phone: Optional[str] = None
 
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone: Optional[str] = None
+    role: Optional[UserRole] = None
+    is_active: Optional[bool] = None
+
+class PasswordReset(BaseModel):
+    new_password: str
+
 class LoginRequest(BaseModel):
     username: str
     password: str
