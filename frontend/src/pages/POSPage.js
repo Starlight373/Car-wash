@@ -355,6 +355,18 @@ export const POSPage = () => {
               />
             </div>
             
+            <div>
+              <Label className="text-zinc-400 mb-2">Catatan (Opsional)</Label>
+              <Input
+                type="text"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                data-testid="transaction-notes-input"
+                className="bg-zinc-900/50 border-zinc-800 text-white"
+                placeholder="Catatan transaksi..."
+              />
+            </div>
+            
             {received >= total && (
               <div className="bg-zinc-900/50 p-4 rounded-sm border border-zinc-800">
                 <div className="flex items-center justify-between">
