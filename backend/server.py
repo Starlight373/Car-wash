@@ -633,6 +633,55 @@ async def get_dashboard_stats(current_user: User = Depends(get_current_user)):
         "kasir_performance": kasir_performance
     }
 
+# Public Routes (No Authentication Required)
+@api_router.post("/public/check-membership")
+async def check_membership_public(phone: str):
+    """Public endpoint untuk customer cek membership mereka"""
+    customer = await db.customers.find_one({"phone": phone}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Nomor telepon tidak ditemukan")
+    
+    # Get memberships for this customer
+    memberships = await db.memberships.find({"customer_id": customer['id']}, {"_id": 0}).to_list(100)
+    
+    now = datetime.now(timezone.utc)
+    result_memberships = []
+    
+    for m in memberships:
+        if isinstance(m.get('start_date'), str):
+            m['start_date'] = datetime.fromisoformat(m['start_date'])
+        if isinstance(m.get('end_date'), str):
+            m['end_date'] = datetime.fromisoformat(m['end_date'])
+        if isinstance(m.get('created_at'), str):
+            m['created_at'] = datetime.fromisoformat(m['created_at'])
+        if isinstance(m.get('last_used'), str):
+            m['last_used'] = datetime.fromisoformat(m['last_used'])
+        
+        # Update status
+        if m['end_date'] < now:
+            m['status'] = MembershipStatus.EXPIRED
+        elif (m['end_date'] - now).days <= 7:
+            m['status'] = MembershipStatus.EXPIRING_SOON
+        else:
+            m['status'] = MembershipStatus.ACTIVE
+        
+        # Calculate days remaining
+        days_remaining = (m['end_date'] - now).days
+        m['days_remaining'] = days_remaining if days_remaining > 0 else 0
+        
+        result_memberships.append(m)
+    
+    return {
+        "customer": customer,
+        "memberships": result_memberships
+    }
+
+@api_router.get("/public/services")
+async def get_public_services():
+    """Public endpoint untuk menampilkan services di landing page"""
+    services = await db.services.find({"is_active": True}, {"_id": 0}).to_list(1000)
+    return services
+
 # Include router
 app.include_router(api_router)
 
