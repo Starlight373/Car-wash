@@ -771,14 +771,14 @@ export const SettingsPage = () => {
                   Lokasi Tugas (Outlet)
                 </Label>
                 <Select
-                  value={editData.outlet_id}
-                  onValueChange={(value) => setEditData({ ...editData, outlet_id: value })}
+                  value={editData.outlet_id || 'none'}
+                  onValueChange={(value) => setEditData({ ...editData, outlet_id: value === 'none' ? '' : value })}
                 >
                   <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white" data-testid="edit-outlet-select">
                     <SelectValue placeholder="Pilih outlet" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Tidak ditentukan</SelectItem>
+                    <SelectItem value="none">Tidak ditentukan</SelectItem>
                     {outlets.map((outlet) => (
                       <SelectItem key={outlet.id} value={outlet.id}>
                         {outlet.name}
