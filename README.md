@@ -4,7 +4,19 @@ Sistem Point of Sale (POS) profesional untuk bisnis car wash dengan fitur lengka
 
 ## 🌟 Fitur Utama (Phase 1)
 
-### 1. Multi-Kasir Management
+### 1. Public Landing Page & Customer Self-Service ✨ NEW!
+- ✅ Landing page promosi car wash untuk public
+- ✅ Display services dan paket membership
+- ✅ Customer dapat cek status membership sendiri (by phone number)
+- ✅ Informasi expiry date dan sisa hari membership
+- ✅ Contact information dan lokasi outlet
+
+### 2. Transaction Notes & Records
+- ✅ Catatan untuk setiap transaksi POS
+- ✅ Catatan untuk perpanjangan/pembuatan membership
+- ✅ Complete audit trail dengan notes tracking
+
+### 3. Multi-Kasir Management
 - ✅ Login/logout dengan akun individual per kasir
 - ✅ Role-based access control (Owner, Manager, Kasir, Teknisi)
 - ✅ User management dengan profile lengkap
@@ -211,6 +223,7 @@ Sistem sudah di-seed dengan:
   usage_count: int,
   last_used: datetime (optional),
   price: float,
+  notes: string (optional),
   created_at: datetime
 }
 ```
@@ -263,6 +276,7 @@ Sistem sudah di-seed dengan:
   change_amount: float,
   cogs: float,
   gross_margin: float,
+  notes: string (optional),
   created_at: datetime
 }
 ```
@@ -308,6 +322,10 @@ Sistem sudah di-seed dengan:
 
 ### Dashboard
 - `GET /api/dashboard/stats` - Get dashboard statistics
+
+### Public Endpoints (No Authentication)
+- `POST /api/public/check-membership?phone={phone}` - Check membership by phone number
+- `GET /api/public/services` - Get public services list for landing page
 
 ## 📈 Testing Results
 
