@@ -30,6 +30,7 @@ export const POSPage = () => {
   const [paymentReceived, setPaymentReceived] = useState('');
   const [currentShift, setCurrentShift] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
+  const [notes, setNotes] = useState('');
   const user = getCurrentUser();
   
   useEffect(() => {
@@ -126,6 +127,7 @@ export const POSPage = () => {
         })),
         payment_method: paymentMethod,
         payment_received: received,
+        notes: notes || null,
       };
       
       const response = await api.post('/transactions', transactionData);
@@ -135,6 +137,7 @@ export const POSPage = () => {
       setCart([]);
       setSelectedCustomer(null);
       setPaymentReceived('');
+      setNotes('');
       setShowCheckout(false);
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Transaksi gagal');
