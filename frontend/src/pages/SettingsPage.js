@@ -679,14 +679,14 @@ export const SettingsPage = () => {
                 Lokasi Tugas (Outlet)
               </Label>
               <Select
-                value={formData.outlet_id}
-                onValueChange={(value) => setFormData({ ...formData, outlet_id: value })}
+                value={formData.outlet_id || 'none'}
+                onValueChange={(value) => setFormData({ ...formData, outlet_id: value === 'none' ? '' : value })}
               >
                 <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white" data-testid="user-outlet-select">
                   <SelectValue placeholder="Pilih outlet" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tidak ditentukan</SelectItem>
+                  <SelectItem value="none">Tidak ditentukan</SelectItem>
                   {outlets.map((outlet) => (
                     <SelectItem key={outlet.id} value={outlet.id}>
                       {outlet.name}
