@@ -177,6 +177,7 @@ class InventoryItem(BaseModel):
     unit_cost: float  # HPP
     supplier: Optional[str] = None
     last_purchase_date: Optional[datetime] = None
+    is_active: bool = True
 
 class InventoryItemCreate(BaseModel):
     sku: str
@@ -188,6 +189,78 @@ class InventoryItemCreate(BaseModel):
     max_stock: float
     unit_cost: float
     supplier: Optional[str] = None
+
+class InventoryItemUpdate(BaseModel):
+    name: Optional[str] = None
+    category: Optional[str] = None
+    unit: Optional[str] = None
+    current_stock: Optional[float] = None
+    min_stock: Optional[float] = None
+    max_stock: Optional[float] = None
+    unit_cost: Optional[float] = None
+    supplier: Optional[str] = None
+    is_active: Optional[bool] = None
+
+# BOM (Bill of Materials) for services
+class BOMItem(BaseModel):
+    inventory_id: str
+    inventory_name: str
+    quantity: float
+    unit: str
+
+class Service(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: Optional[str] = None
+    price: float
+    duration_minutes: int
+    category: str  # exterior, interior, detailing, etc
+    is_active: bool = True
+    bom: Optional[List[dict]] = []  # Bill of Materials
+
+class ServiceCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: float
+    duration_minutes: int
+    category: str
+    bom: Optional[List[dict]] = []
+
+class ServiceUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    duration_minutes: Optional[int] = None
+    category: Optional[str] = None
+    is_active: Optional[bool] = None
+    bom: Optional[List[dict]] = None
+
+# Physical Products (for sale)
+class Product(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    name: str
+    description: Optional[str] = None
+    price: float
+    category: str
+    inventory_id: Optional[str] = None  # Link to inventory
+    is_active: bool = True
+
+class ProductCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    price: float
+    category: str
+    inventory_id: Optional[str] = None
+
+class ProductUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[float] = None
+    category: Optional[str] = None
+    inventory_id: Optional[str] = None
+    is_active: Optional[bool] = None
 
 class Transaction(BaseModel):
     model_config = ConfigDict(extra="ignore")
