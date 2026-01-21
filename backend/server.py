@@ -479,6 +479,59 @@ async def delete_user(user_id: str, current_user: User = Depends(get_current_use
     
     return {"message": "User deactivated successfully"}
 
+# Routes - Outlets
+@api_router.post("/outlets", response_model=Outlet)
+async def create_outlet(outlet_data: OutletCreate, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Only owner or manager can create outlets")
+    outlet = Outlet(**outlet_data.model_dump())
+    await db.outlets.insert_one(outlet.model_dump())
+    return outlet
+
+@api_router.get("/outlets", response_model=List[Outlet])
+async def get_outlets(current_user: User = Depends(get_current_user)):
+    outlets = await db.outlets.find({"is_active": True}, {"_id": 0}).to_list(100)
+    return outlets
+
+@api_router.get("/outlets/{outlet_id}", response_model=Outlet)
+async def get_outlet(outlet_id: str, current_user: User = Depends(get_current_user)):
+    outlet = await db.outlets.find_one({"id": outlet_id}, {"_id": 0})
+    if not outlet:
+        raise HTTPException(status_code=404, detail="Outlet not found")
+    return outlet
+
+@api_router.put("/outlets/{outlet_id}", response_model=Outlet)
+async def update_outlet(outlet_id: str, outlet_data: OutletUpdate, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Only owner or manager can update outlets")
+    
+    update_data = {k: v for k, v in outlet_data.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No data to update")
+    
+    result = await db.outlets.update_one({"id": outlet_id}, {"$set": update_data})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Outlet not found")
+    
+    outlet = await db.outlets.find_one({"id": outlet_id}, {"_id": 0})
+    return outlet
+
+@api_router.delete("/outlets/{outlet_id}")
+async def delete_outlet(outlet_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.role != UserRole.OWNER:
+        raise HTTPException(status_code=403, detail="Only owner can delete outlets")
+    
+    # Check if outlet has assigned users
+    assigned_users = await db.users.count_documents({"outlet_id": outlet_id, "is_active": True})
+    if assigned_users > 0:
+        raise HTTPException(status_code=400, detail=f"Cannot delete outlet with {assigned_users} assigned users")
+    
+    result = await db.outlets.update_one({"id": outlet_id}, {"$set": {"is_active": False}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Outlet not found")
+    
+    return {"message": "Outlet deleted successfully"}
+
 # Routes - Shifts
 @api_router.post("/shifts/open", response_model=Shift)
 async def open_shift(shift_data: ShiftOpen, current_user: User = Depends(get_current_user)):
