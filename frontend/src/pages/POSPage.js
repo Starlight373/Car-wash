@@ -235,7 +235,7 @@ export const POSPage = () => {
           is_member_usage: item.type === 'member_usage',
           notes: item.notes || null,
         })),
-        payment_method: paymentMethod,
+        payment_method: total === 0 && isMemberTransaction ? 'subscription' : paymentMethod,
         payment_received: total === 0 ? 0 : received,
         notes: isMemberTransaction 
           ? `${notes ? notes + ' | ' : ''}Member Subscription - Gratis Cuci` 
