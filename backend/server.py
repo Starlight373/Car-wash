@@ -963,6 +963,17 @@ async def update_product(product_id: str, product_data: ProductUpdate, current_u
     
     return Product(**product)
 
+@api_router.delete("/products/{product_id}")
+async def delete_product(product_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Only owner or manager can delete products")
+    
+    result = await db.products.update_one({"id": product_id}, {"$set": {"is_active": False}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    return {"message": "Product deleted successfully"}
+
 # Routes - Inventory
 @api_router.post("/inventory", response_model=InventoryItem)
 async def create_inventory_item(item_data: InventoryItemCreate, current_user: User = Depends(get_current_user)):
