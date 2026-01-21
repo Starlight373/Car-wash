@@ -13,7 +13,9 @@ import {
   LogOut,
   Clock,
   Sparkles,
-  Receipt
+  Receipt,
+  ShoppingBag,
+  MapPin
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -31,6 +33,7 @@ export const Sidebar = () => {
     { path: '/memberships', icon: CreditCard, label: 'Memberships' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
     { path: '/services', icon: ClipboardList, label: 'Services' },
+    { path: '/products', icon: ShoppingBag, label: 'Produk' },
     { path: '/reports', icon: BarChart3, label: 'Reports' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
