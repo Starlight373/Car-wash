@@ -431,6 +431,16 @@ async def update_user(user_id: str, update_data: UserUpdate, current_user: User 
     
     filtered_data = {k: v for k, v in update_data.model_dump().items() if v is not None}
     
+    # If outlet_id is being updated, also update outlet_name
+    if 'outlet_id' in filtered_data and filtered_data['outlet_id']:
+        outlet = await db.outlets.find_one({"id": filtered_data['outlet_id']}, {"_id": 0})
+        if outlet:
+            filtered_data['outlet_name'] = outlet['name']
+        else:
+            filtered_data['outlet_name'] = None
+    elif 'outlet_id' in filtered_data and filtered_data['outlet_id'] is None:
+        filtered_data['outlet_name'] = None
+    
     if filtered_data:
         await db.users.update_one({"id": user_id}, {"$set": filtered_data})
         user.update(filtered_data)
