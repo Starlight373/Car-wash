@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import api from '../utils/api';
-import { Plus, Download, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, Download, AlertCircle, CheckCircle, XCircle, Eye, Trash2, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
 import {
@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { exportToExcel } from '../utils/excelExport';
+import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog';
 
 const MEMBERSHIP_TYPES = [
   { value: 'regular', label: 'Regular (Point-Based)', price: 0 },
@@ -33,11 +34,18 @@ export const MembershipsPage = () => {
   const [memberships, setMemberships] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [showDetailDialog, setShowDetailDialog] = useState(false);
+  const [showExtendDialog, setShowExtendDialog] = useState(false);
+  const [selectedMembership, setSelectedMembership] = useState(null);
+  const [membershipDetail, setMembershipDetail] = useState(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [price, setPrice] = useState('');
   const [membershipNotes, setMembershipNotes] = useState('');
-  const [filter, setFilter] = useState('all'); // all, active, expiring, expired
+  const [extendDays, setExtendDays] = useState('30');
+  const [filter, setFilter] = useState('all');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [loading, setLoading] = useState(false);
   
   useEffect(() => {
     fetchMemberships();
@@ -72,6 +80,7 @@ export const MembershipsPage = () => {
   };
   
   const handleAddMembership = async () => {
+    setLoading(true);
     try {
       await api.post('/memberships', {
         customer_id: selectedCustomerId,
@@ -88,6 +97,53 @@ export const MembershipsPage = () => {
       fetchMemberships();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Gagal membuat membership');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleViewDetail = async (membership) => {
+    setSelectedMembership(membership);
+    try {
+      const response = await api.get(`/memberships/${membership.id}`);
+      setMembershipDetail(response.data);
+      setShowDetailDialog(true);
+    } catch (error) {
+      toast.error('Gagal memuat detail membership');
+    }
+  };
+  
+  const handleExtend = (membership) => {
+    setSelectedMembership(membership);
+    setExtendDays('30');
+    setShowExtendDialog(true);
+  };
+  
+  const handleConfirmExtend = async () => {
+    setLoading(true);
+    try {
+      await api.put(`/memberships/${selectedMembership.id}?days=${parseInt(extendDays)}`);
+      toast.success(`Membership diperpanjang ${extendDays} hari`);
+      setShowExtendDialog(false);
+      fetchMemberships();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Gagal memperpanjang membership');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDelete = async () => {
+    setLoading(true);
+    try {
+      await api.delete(`/memberships/${deleteTarget.id}`);
+      toast.success('Membership berhasil dihapus');
+      setDeleteTarget(null);
+      fetchMemberships();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Gagal menghapus membership');
+    } finally {
+      setLoading(false);
     }
   };
   
@@ -196,7 +252,7 @@ export const MembershipsPage = () => {
             return (
               <div
                 key={membership.id}
-                className="bg-[#121214] border border-zinc-800 rounded-sm p-6 hover:border-[#D4AF37]/30 transition-all hover-lift"
+                className="bg-[#121214] border border-zinc-800 rounded-sm p-6 hover:border-[#D4AF37]/30 transition-all"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-2">
@@ -242,11 +298,44 @@ export const MembershipsPage = () => {
                 </div>
                 
                 <div className="pt-4 border-t border-zinc-800">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-3">
                     <span className="text-xs text-zinc-500">Harga</span>
                     <span className="font-mono text-lg font-bold text-[#D4AF37]">
                       Rp {membership.price.toLocaleString('id-ID')}
                     </span>
+                  </div>
+                  
+                  {/* Actions */}
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => handleViewDetail(membership)}
+                      size="sm"
+                      variant="outline"
+                      data-testid={`view-membership-${membership.id}`}
+                      className="flex-1 bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700"
+                    >
+                      <Eye className="w-4 h-4 mr-1" />
+                      Detail
+                    </Button>
+                    <Button
+                      onClick={() => handleExtend(membership)}
+                      size="sm"
+                      variant="outline"
+                      data-testid={`extend-membership-${membership.id}`}
+                      className="flex-1 bg-[#D4AF37]/20 border-[#D4AF37]/50 text-[#D4AF37] hover:bg-[#D4AF37]/30"
+                    >
+                      <Calendar className="w-4 h-4 mr-1" />
+                      Perpanjang
+                    </Button>
+                    <Button
+                      onClick={() => setDeleteTarget(membership)}
+                      size="sm"
+                      variant="ghost"
+                      data-testid={`delete-membership-${membership.id}`}
+                      className="text-zinc-400 hover:text-red-500"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -326,15 +415,158 @@ export const MembershipsPage = () => {
             
             <Button
               onClick={handleAddMembership}
-              disabled={!selectedCustomerId || !selectedType || !price}
+              disabled={loading || !selectedCustomerId || !selectedType || !price}
               data-testid="submit-membership-button"
               className="w-full bg-[#D4AF37] text-black hover:bg-[#B5952F] font-bold uppercase"
             >
-              Buat Membership
+              {loading ? 'Membuat...' : 'Buat Membership'}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+      
+      {/* Membership Detail Dialog */}
+      <Dialog open={showDetailDialog} onOpenChange={setShowDetailDialog}>
+        <DialogContent className="bg-[#121214] border-zinc-800 text-white max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-secondary text-2xl">Detail Membership</DialogTitle>
+          </DialogHeader>
+          
+          {membershipDetail && (
+            <div className="space-y-6">
+              {/* Member Info */}
+              <div className="bg-gradient-to-r from-[#D4AF37]/20 to-[#F59E0B]/20 border border-[#D4AF37]/50 rounded-sm p-4">
+                <h3 className="font-semibold text-white text-lg mb-2">{membershipDetail.customer_name}</h3>
+                <p className="text-sm text-[#D4AF37]">
+                  {MEMBERSHIP_TYPES.find(t => t.value === membershipDetail.membership_type)?.label}
+                </p>
+              </div>
+              
+              {/* Stats */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-zinc-900/50 p-4 rounded-sm border border-zinc-800">
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Sisa Waktu</p>
+                  <p className={`font-mono text-2xl font-bold ${
+                    membershipDetail.days_remaining <= 0 ? 'text-red-500' : 
+                    membershipDetail.days_remaining <= 7 ? 'text-orange-500' : 'text-green-500'
+                  }`}>
+                    {membershipDetail.days_remaining} hari
+                  </p>
+                </div>
+                <div className="bg-zinc-900/50 p-4 rounded-sm border border-zinc-800">
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">Total Usage</p>
+                  <p className="font-mono text-2xl font-bold text-white">{membershipDetail.usage_count} kali</p>
+                </div>
+              </div>
+              
+              {/* Dates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider">Tanggal Mulai</p>
+                  <p className="text-white">{new Date(membershipDetail.start_date).toLocaleDateString('id-ID', { 
+                    day: 'numeric', month: 'long', year: 'numeric' 
+                  })}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-zinc-500 uppercase tracking-wider">Tanggal Berakhir</p>
+                  <p className="text-white">{new Date(membershipDetail.end_date).toLocaleDateString('id-ID', { 
+                    day: 'numeric', month: 'long', year: 'numeric' 
+                  })}</p>
+                </div>
+              </div>
+              
+              {/* Usage History */}
+              <div>
+                <h4 className="font-secondary text-lg text-white mb-3">Riwayat Penggunaan</h4>
+                {membershipDetail.usage_history && membershipDetail.usage_history.length > 0 ? (
+                  <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+                    {membershipDetail.usage_history.map((usage) => (
+                      <div key={usage.id} className="bg-zinc-900/50 p-3 rounded-sm border border-zinc-800">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold text-white">{usage.service_name}</p>
+                            <p className="text-xs text-zinc-500">Kasir: {usage.kasir_name}</p>
+                          </div>
+                          <p className="text-xs text-zinc-400">
+                            {new Date(usage.used_at).toLocaleDateString('id-ID')} {new Date(usage.used_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-center text-zinc-500 py-4">Belum ada riwayat penggunaan</p>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Extend Membership Dialog */}
+      <Dialog open={showExtendDialog} onOpenChange={setShowExtendDialog}>
+        <DialogContent className="bg-[#121214] border-zinc-800 text-white">
+          <DialogHeader>
+            <DialogTitle className="font-secondary text-2xl">Perpanjang Membership</DialogTitle>
+          </DialogHeader>
+          
+          {selectedMembership && (
+            <div className="space-y-4">
+              <div className="bg-zinc-900/50 p-4 rounded-sm border border-zinc-800">
+                <p className="text-sm text-zinc-400">Member</p>
+                <p className="font-semibold text-white">{selectedMembership.customer_name}</p>
+                <p className="text-xs text-zinc-500 mt-1">
+                  Berakhir: {new Date(selectedMembership.end_date).toLocaleDateString('id-ID')}
+                </p>
+              </div>
+              
+              <div>
+                <Label className="text-zinc-400 mb-2">Perpanjang (hari)</Label>
+                <div className="flex gap-2">
+                  {['7', '14', '30', '90'].map((days) => (
+                    <Button
+                      key={days}
+                      onClick={() => setExtendDays(days)}
+                      variant={extendDays === days ? 'default' : 'outline'}
+                      className={extendDays === days 
+                        ? 'bg-[#D4AF37] text-black' 
+                        : 'bg-zinc-800 border-zinc-700 text-white hover:bg-zinc-700'}
+                    >
+                      {days} hari
+                    </Button>
+                  ))}
+                </div>
+                <Input
+                  type="number"
+                  value={extendDays}
+                  onChange={(e) => setExtendDays(e.target.value)}
+                  className="bg-zinc-900/50 border-zinc-800 text-white font-mono mt-2"
+                  placeholder="Jumlah hari"
+                />
+              </div>
+              
+              <Button
+                onClick={handleConfirmExtend}
+                disabled={loading || !extendDays}
+                data-testid="confirm-extend-button"
+                className="w-full bg-[#D4AF37] text-black hover:bg-[#B5952F] font-bold uppercase"
+              >
+                {loading ? 'Memperpanjang...' : `Perpanjang ${extendDays} Hari`}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Confirmation */}
+      <DeleteConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        loading={loading}
+        title="Hapus Membership?"
+        description={deleteTarget ? `Membership untuk "${deleteTarget.customer_name}" akan dihapus beserta riwayat penggunaannya.` : ''}
+      />
     </Layout>
   );
 };
