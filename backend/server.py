@@ -573,6 +573,38 @@ async def get_inventory(current_user: User = Depends(get_current_user)):
             item['last_purchase_date'] = datetime.fromisoformat(item['last_purchase_date'])
     return items
 
+@api_router.get("/inventory/{item_id}", response_model=InventoryItem)
+async def get_inventory_item(item_id: str, current_user: User = Depends(get_current_user)):
+    item = await db.inventory.find_one({"id": item_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    if isinstance(item.get('last_purchase_date'), str):
+        item['last_purchase_date'] = datetime.fromisoformat(item['last_purchase_date'])
+    return item
+
+@api_router.put("/inventory/{item_id}", response_model=InventoryItem)
+async def update_inventory_item(item_id: str, item_data: InventoryItemUpdate, current_user: User = Depends(get_current_user)):
+    item = await db.inventory.find_one({"id": item_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    update_data = {k: v for k, v in item_data.model_dump().items() if v is not None}
+    if update_data:
+        await db.inventory.update_one({"id": item_id}, {"$set": update_data})
+        item.update(update_data)
+    
+    if isinstance(item.get('last_purchase_date'), str):
+        item['last_purchase_date'] = datetime.fromisoformat(item['last_purchase_date'])
+    
+    return InventoryItem(**item)
+
+@api_router.delete("/inventory/{item_id}")
+async def delete_inventory_item(item_id: str, current_user: User = Depends(get_current_user)):
+    result = await db.inventory.delete_one({"id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    return {"message": "Item deleted successfully"}
+
 @api_router.get("/inventory/low-stock")
 async def get_low_stock(current_user: User = Depends(get_current_user)):
     items = await db.inventory.find({}, {"_id": 0}).to_list(1000)
