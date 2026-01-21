@@ -2,11 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Layout } from '../components/Layout';
 import api from '../utils/api';
 import { getCurrentUser } from '../utils/auth';
-import { Plus, UserCheck, UserX, Key, Shield } from 'lucide-react';
+import { Plus, UserCheck, UserX, Key, Shield, MapPin, Pencil, Trash2, Building } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../components/ui/button';
-import { EditButton } from '../components/EditButton';
-import { DeleteButton } from '../components/DeleteButton';
 import { DeleteConfirmDialog } from '../components/DeleteConfirmDialog';
 import {
   Dialog,
@@ -27,11 +25,16 @@ import { Switch } from '../components/ui/switch';
 
 export const SettingsPage = () => {
   const [users, setUsers] = useState([]);
+  const [outlets, setOutlets] = useState([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [showAddOutletDialog, setShowAddOutletDialog] = useState(false);
+  const [showEditOutletDialog, setShowEditOutletDialog] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteOutletTarget, setDeleteOutletTarget] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
+  const [editingOutlet, setEditingOutlet] = useState(null);
   const [passwordTarget, setPasswordTarget] = useState(null);
   const [loading, setLoading] = useState(false);
   
@@ -42,6 +45,7 @@ export const SettingsPage = () => {
     email: '',
     role: '',
     phone: '',
+    outlet_id: '',
   });
   
   const [editData, setEditData] = useState({
@@ -50,6 +54,14 @@ export const SettingsPage = () => {
     phone: '',
     role: '',
     is_active: true,
+    outlet_id: '',
+  });
+  
+  const [outletFormData, setOutletFormData] = useState({
+    name: '',
+    address: '',
+    phone: '',
+    manager_name: '',
   });
   
   const [newPassword, setNewPassword] = useState('');
@@ -60,6 +72,7 @@ export const SettingsPage = () => {
   
   useEffect(() => {
     fetchUsers();
+    fetchOutlets();
   }, []);
   
   const fetchUsers = async () => {
@@ -71,6 +84,16 @@ export const SettingsPage = () => {
     }
   };
   
+  const fetchOutlets = async () => {
+    try {
+      const response = await api.get('/outlets');
+      setOutlets(response.data);
+    } catch (error) {
+      console.error('Error fetching outlets:', error);
+    }
+  };
+  
+  // User Management
   const handleAddUser = async () => {
     if (!formData.username || !formData.password || !formData.full_name || !formData.role) {
       toast.error('Mohon lengkapi data yang diperlukan');
@@ -79,7 +102,10 @@ export const SettingsPage = () => {
     
     setLoading(true);
     try {
-      await api.post('/auth/register', formData);
+      await api.post('/auth/register', {
+        ...formData,
+        outlet_id: formData.outlet_id || null,
+      });
       toast.success('User berhasil ditambahkan');
       setShowAddDialog(false);
       setFormData({
@@ -89,6 +115,7 @@ export const SettingsPage = () => {
         email: '',
         role: '',
         phone: '',
+        outlet_id: '',
       });
       fetchUsers();
     } catch (error) {
@@ -106,6 +133,7 @@ export const SettingsPage = () => {
       phone: user.phone || '',
       role: user.role,
       is_active: user.is_active,
+      outlet_id: user.outlet_id || '',
     });
     setShowEditDialog(true);
   };
@@ -113,7 +141,10 @@ export const SettingsPage = () => {
   const handleSaveEdit = async () => {
     setLoading(true);
     try {
-      await api.put(`/users/${editingUser.id}`, editData);
+      await api.put(`/users/${editingUser.id}`, {
+        ...editData,
+        outlet_id: editData.outlet_id || null,
+      });
       toast.success('User berhasil diupdate');
       setShowEditDialog(false);
       fetchUsers();
@@ -165,6 +196,76 @@ export const SettingsPage = () => {
     }
   };
   
+  // Outlet Management
+  const resetOutletForm = () => {
+    setOutletFormData({
+      name: '',
+      address: '',
+      phone: '',
+      manager_name: '',
+    });
+  };
+  
+  const handleAddOutlet = async () => {
+    if (!outletFormData.name || !outletFormData.address) {
+      toast.error('Nama dan alamat outlet harus diisi');
+      return;
+    }
+    
+    setLoading(true);
+    try {
+      await api.post('/outlets', outletFormData);
+      toast.success('Outlet berhasil ditambahkan');
+      setShowAddOutletDialog(false);
+      resetOutletForm();
+      fetchOutlets();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Gagal menambahkan outlet');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleEditOutlet = (outlet) => {
+    setEditingOutlet(outlet);
+    setOutletFormData({
+      name: outlet.name,
+      address: outlet.address,
+      phone: outlet.phone || '',
+      manager_name: outlet.manager_name || '',
+    });
+    setShowEditOutletDialog(true);
+  };
+  
+  const handleSaveOutlet = async () => {
+    setLoading(true);
+    try {
+      await api.put(`/outlets/${editingOutlet.id}`, outletFormData);
+      toast.success('Outlet berhasil diupdate');
+      setShowEditOutletDialog(false);
+      fetchOutlets();
+      fetchUsers(); // Refresh to update outlet names on users
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Gagal update outlet');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleDeleteOutlet = async () => {
+    setLoading(true);
+    try {
+      await api.delete(`/outlets/${deleteOutletTarget.id}`);
+      toast.success('Outlet berhasil dihapus');
+      setDeleteOutletTarget(null);
+      fetchOutlets();
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Gagal menghapus outlet');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   const getRoleBadge = (role) => {
     const badges = {
       owner: 'bg-[#D4AF37]/20 text-[#D4AF37]',
@@ -187,16 +288,174 @@ export const SettingsPage = () => {
     );
   };
   
+  const renderOutletFormFields = () => (
+    <div className="space-y-4">
+      <div>
+        <Label className="text-zinc-400 mb-2">Nama Outlet *</Label>
+        <Input
+          value={outletFormData.name}
+          onChange={(e) => setOutletFormData({ ...outletFormData, name: e.target.value })}
+          data-testid="outlet-name-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white"
+          placeholder="Wash & Go - Cabang Sudirman"
+        />
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Alamat *</Label>
+        <Input
+          value={outletFormData.address}
+          onChange={(e) => setOutletFormData({ ...outletFormData, address: e.target.value })}
+          data-testid="outlet-address-input"
+          className="bg-zinc-900/50 border-zinc-800 text-white"
+          placeholder="Jl. Sudirman No. 123, Jakarta"
+        />
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Telepon</Label>
+        <Input
+          value={outletFormData.phone}
+          onChange={(e) => setOutletFormData({ ...outletFormData, phone: e.target.value })}
+          className="bg-zinc-900/50 border-zinc-800 text-white"
+          placeholder="021-12345678"
+        />
+      </div>
+      <div>
+        <Label className="text-zinc-400 mb-2">Nama Manager</Label>
+        <Input
+          value={outletFormData.manager_name}
+          onChange={(e) => setOutletFormData({ ...outletFormData, manager_name: e.target.value })}
+          className="bg-zinc-900/50 border-zinc-800 text-white"
+          placeholder="Nama penanggung jawab"
+        />
+      </div>
+    </div>
+  );
+  
   return (
     <Layout>
       <div className="animate-fade-in" data-testid="settings-page">
         <div className="mb-6">
           <h1 className="font-secondary font-bold text-4xl text-white mb-2">Settings</h1>
-          <p className="text-zinc-400">Kelola user dan pengaturan sistem</p>
+          <p className="text-zinc-400">Kelola outlet, user, dan pengaturan sistem</p>
+        </div>
+        
+        {/* Outlet Management */}
+        <div className="bg-[#121214] border border-zinc-800 rounded-sm p-6 mb-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <Building className="w-6 h-6 text-[#D4AF37]" />
+              <h2 className="font-secondary text-2xl text-white">Outlet / Cabang</h2>
+            </div>
+            {canManageUsers && (
+              <Button
+                onClick={() => { resetOutletForm(); setShowAddOutletDialog(true); }}
+                data-testid="add-outlet-button"
+                className="bg-[#D4AF37] text-black hover:bg-[#B5952F]"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Tambah Outlet
+              </Button>
+            )}
+          </div>
+          
+          {outlets.length === 0 ? (
+            <div className="text-center py-8">
+              <MapPin className="w-12 h-12 mx-auto mb-4 text-zinc-600" />
+              <p className="text-zinc-500">Belum ada outlet</p>
+              <p className="text-sm text-zinc-600">Tambahkan outlet untuk mengatur lokasi cabang</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {outlets.map((outlet) => {
+                const assignedUsers = users.filter(u => u.outlet_id === outlet.id);
+                
+                return (
+                  <div
+                    key={outlet.id}
+                    className="bg-zinc-900/50 border border-zinc-800 rounded-sm p-4 hover:border-[#D4AF37]/30 transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-[#D4AF37]/20 rounded-full flex items-center justify-center">
+                          <MapPin className="w-5 h-5 text-[#D4AF37]" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-white">{outlet.name}</h3>
+                          <p className="text-xs text-zinc-500">{assignedUsers.length} staff</p>
+                        </div>
+                      </div>
+                      {canManageUsers && (
+                        <div className="flex gap-1">
+                          <Button
+                            onClick={() => handleEditOutlet(outlet)}
+                            size="sm"
+                            variant="ghost"
+                            data-testid={`edit-outlet-${outlet.id}`}
+                            className="h-8 w-8 p-0 text-zinc-400 hover:text-white"
+                          >
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          {isOwner && (
+                            <Button
+                              onClick={() => setDeleteOutletTarget(outlet)}
+                              size="sm"
+                              variant="ghost"
+                              data-testid={`delete-outlet-${outlet.id}`}
+                              className="h-8 w-8 p-0 text-zinc-400 hover:text-red-500"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="space-y-2 text-sm">
+                      <div>
+                        <p className="text-xs text-zinc-500">Alamat</p>
+                        <p className="text-zinc-300">{outlet.address}</p>
+                      </div>
+                      {outlet.phone && (
+                        <div>
+                          <p className="text-xs text-zinc-500">Telepon</p>
+                          <p className="text-zinc-300">{outlet.phone}</p>
+                        </div>
+                      )}
+                      {outlet.manager_name && (
+                        <div>
+                          <p className="text-xs text-zinc-500">Manager</p>
+                          <p className="text-zinc-300">{outlet.manager_name}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Assigned Staff */}
+                    {assignedUsers.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-zinc-800">
+                        <p className="text-xs text-zinc-500 mb-2">Staff di outlet ini:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {assignedUsers.slice(0, 3).map((user) => (
+                            <span key={user.id} className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-300">
+                              {user.full_name}
+                            </span>
+                          ))}
+                          {assignedUsers.length > 3 && (
+                            <span className="px-2 py-1 bg-zinc-800 rounded text-xs text-zinc-400">
+                              +{assignedUsers.length - 3} lainnya
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
         
         {/* User Management */}
-        <div className="bg-[#121214] border border-zinc-800 rounded-sm p-6 mb-6">
+        <div className="bg-[#121214] border border-zinc-800 rounded-sm p-6">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <Shield className="w-6 h-6 text-[#D4AF37]" />
@@ -258,6 +517,18 @@ export const SettingsPage = () => {
                       <p className="text-xs text-zinc-500">Role</p>
                       {getRoleBadge(user.role)}
                     </div>
+                    {/* Outlet Assignment */}
+                    <div>
+                      <p className="text-xs text-zinc-500">Lokasi Tugas</p>
+                      {user.outlet_name ? (
+                        <div className="flex items-center gap-1 mt-1">
+                          <MapPin className="w-3 h-3 text-[#D4AF37]" />
+                          <span className="text-sm text-[#D4AF37]">{user.outlet_name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-zinc-500">Belum ditentukan</span>
+                      )}
+                    </div>
                     {user.email && (
                       <div>
                         <p className="text-xs text-zinc-500">Email</p>
@@ -270,10 +541,6 @@ export const SettingsPage = () => {
                         <p className="text-sm text-white">{user.phone}</p>
                       </div>
                     )}
-                    <div>
-                      <p className="text-xs text-zinc-500">Bergabung</p>
-                      <p className="text-sm text-white">{new Date(user.created_at).toLocaleDateString('id-ID')}</p>
-                    </div>
                   </div>
                   
                   {(canEdit || canDelete) && (
@@ -298,10 +565,13 @@ export const SettingsPage = () => {
                         </>
                       )}
                       {canDelete && (
-                        <DeleteButton
+                        <Button
                           onClick={() => setDeleteTarget(user)}
                           data-testid={`delete-user-${user.id}`}
-                        />
+                          className="h-8 w-8 p-0 bg-zinc-800 text-zinc-400 hover:text-red-500 hover:bg-zinc-700"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       )}
                     </div>
                   )}
@@ -310,51 +580,47 @@ export const SettingsPage = () => {
             })}
           </div>
         </div>
-        
-        {/* Outlet Info */}
-        <div className="bg-[#121214] border border-zinc-800 rounded-sm p-6">
-          <h2 className="font-secondary text-2xl text-white mb-4">Outlet Information</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-zinc-400 mb-2">Nama Outlet</Label>
-              <Input
-                value="Wash & Go - Main Branch"
-                disabled
-                className="bg-zinc-900/50 border-zinc-800 text-white"
-              />
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Alamat</Label>
-              <Input
-                value="Jl. Sudirman No. 123, Jakarta"
-                disabled
-                className="bg-zinc-900/50 border-zinc-800 text-white"
-              />
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Telepon</Label>
-              <Input
-                value="021-12345678"
-                disabled
-                className="bg-zinc-900/50 border-zinc-800 text-white"
-              />
-            </div>
-            <div>
-              <Label className="text-zinc-400 mb-2">Email</Label>
-              <Input
-                value="info@washngo.com"
-                disabled
-                className="bg-zinc-900/50 border-zinc-800 text-white"
-              />
-            </div>
-          </div>
-          <p className="text-xs text-zinc-500 mt-4">Multi-outlet support akan tersedia di update mendatang</p>
-        </div>
       </div>
+      
+      {/* Add Outlet Dialog */}
+      <Dialog open={showAddOutletDialog} onOpenChange={setShowAddOutletDialog}>
+        <DialogContent className="bg-[#121214] border-zinc-800 text-white">
+          <DialogHeader>
+            <DialogTitle className="font-secondary text-2xl">Tambah Outlet Baru</DialogTitle>
+          </DialogHeader>
+          {renderOutletFormFields()}
+          <Button
+            onClick={handleAddOutlet}
+            disabled={loading}
+            data-testid="submit-outlet-button"
+            className="w-full bg-[#D4AF37] text-black hover:bg-[#B5952F] font-bold uppercase"
+          >
+            {loading ? 'Menambahkan...' : 'Tambah Outlet'}
+          </Button>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Edit Outlet Dialog */}
+      <Dialog open={showEditOutletDialog} onOpenChange={setShowEditOutletDialog}>
+        <DialogContent className="bg-[#121214] border-zinc-800 text-white">
+          <DialogHeader>
+            <DialogTitle className="font-secondary text-2xl">Edit Outlet</DialogTitle>
+          </DialogHeader>
+          {renderOutletFormFields()}
+          <Button
+            onClick={handleSaveOutlet}
+            disabled={loading}
+            data-testid="save-edit-outlet-button"
+            className="w-full bg-[#D4AF37] text-black hover:bg-[#B5952F] font-bold uppercase"
+          >
+            {loading ? 'Menyimpan...' : 'Simpan Perubahan'}
+          </Button>
+        </DialogContent>
+      </Dialog>
       
       {/* Add User Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-        <DialogContent className="bg-[#121214] border-zinc-800 text-white">
+        <DialogContent className="bg-[#121214] border-zinc-800 text-white max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-secondary text-2xl">Tambah User Baru</DialogTitle>
           </DialogHeader>
@@ -408,6 +674,28 @@ export const SettingsPage = () => {
               </Select>
             </div>
             <div>
+              <Label className="text-zinc-400 mb-2 flex items-center gap-2">
+                <MapPin className="w-4 h-4" />
+                Lokasi Tugas (Outlet)
+              </Label>
+              <Select
+                value={formData.outlet_id}
+                onValueChange={(value) => setFormData({ ...formData, outlet_id: value })}
+              >
+                <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white" data-testid="user-outlet-select">
+                  <SelectValue placeholder="Pilih outlet" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Tidak ditentukan</SelectItem>
+                  {outlets.map((outlet) => (
+                    <SelectItem key={outlet.id} value={outlet.id}>
+                      {outlet.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label className="text-zinc-400 mb-2">Email</Label>
               <Input
                 type="email"
@@ -440,7 +728,7 @@ export const SettingsPage = () => {
       
       {/* Edit User Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent className="bg-[#121214] border-zinc-800 text-white">
+        <DialogContent className="bg-[#121214] border-zinc-800 text-white max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-secondary text-2xl">Edit User</DialogTitle>
           </DialogHeader>
@@ -461,23 +749,6 @@ export const SettingsPage = () => {
                 />
               </div>
               <div>
-                <Label className="text-zinc-400 mb-2">Email</Label>
-                <Input
-                  type="email"
-                  value={editData.email}
-                  onChange={(e) => setEditData({ ...editData, email: e.target.value })}
-                  className="bg-zinc-900/50 border-zinc-800 text-white"
-                />
-              </div>
-              <div>
-                <Label className="text-zinc-400 mb-2">Telepon</Label>
-                <Input
-                  value={editData.phone}
-                  onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
-                  className="bg-zinc-900/50 border-zinc-800 text-white"
-                />
-              </div>
-              <div>
                 <Label className="text-zinc-400 mb-2">Role</Label>
                 <Select
                   value={editData.role}
@@ -493,6 +764,45 @@ export const SettingsPage = () => {
                     <SelectItem value="teknisi">Teknisi</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label className="text-zinc-400 mb-2 flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  Lokasi Tugas (Outlet)
+                </Label>
+                <Select
+                  value={editData.outlet_id}
+                  onValueChange={(value) => setEditData({ ...editData, outlet_id: value })}
+                >
+                  <SelectTrigger className="bg-zinc-900/50 border-zinc-800 text-white" data-testid="edit-outlet-select">
+                    <SelectValue placeholder="Pilih outlet" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Tidak ditentukan</SelectItem>
+                    {outlets.map((outlet) => (
+                      <SelectItem key={outlet.id} value={outlet.id}>
+                        {outlet.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-zinc-400 mb-2">Email</Label>
+                <Input
+                  type="email"
+                  value={editData.email}
+                  onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                  className="bg-zinc-900/50 border-zinc-800 text-white"
+                />
+              </div>
+              <div>
+                <Label className="text-zinc-400 mb-2">Telepon</Label>
+                <Input
+                  value={editData.phone}
+                  onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
+                  className="bg-zinc-900/50 border-zinc-800 text-white"
+                />
               </div>
               <div className="flex items-center justify-between bg-zinc-900/50 p-3 rounded-sm border border-zinc-800">
                 <div>
@@ -542,7 +852,6 @@ export const SettingsPage = () => {
                   className="bg-zinc-900/50 border-zinc-800 text-white"
                   placeholder="Minimal 6 karakter"
                 />
-                <p className="text-xs text-zinc-500 mt-1">Password akan direset dan user harus login dengan password baru</p>
               </div>
               
               <Button
@@ -558,14 +867,24 @@ export const SettingsPage = () => {
         </DialogContent>
       </Dialog>
       
-      {/* Delete Confirmation */}
+      {/* Delete User Confirmation */}
       <DeleteConfirmDialog
         open={!!deleteTarget}
         onOpenChange={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
         loading={loading}
         title="Nonaktifkan User?"
-        description={deleteTarget ? `User ${deleteTarget.full_name} akan dinonaktifkan dan tidak dapat login. User tidak akan dihapus dari sistem.` : ''}
+        description={deleteTarget ? `User ${deleteTarget.full_name} akan dinonaktifkan dan tidak dapat login.` : ''}
+      />
+      
+      {/* Delete Outlet Confirmation */}
+      <DeleteConfirmDialog
+        open={!!deleteOutletTarget}
+        onOpenChange={() => setDeleteOutletTarget(null)}
+        onConfirm={handleDeleteOutlet}
+        loading={loading}
+        title="Hapus Outlet?"
+        description={deleteOutletTarget ? `Outlet "${deleteOutletTarget.name}" akan dihapus. Pastikan tidak ada staff yang di-assign ke outlet ini.` : ''}
       />
     </Layout>
   );
