@@ -557,6 +557,52 @@ async def get_services(current_user: User = Depends(get_current_user)):
     services = await db.services.find({"is_active": True}, {"_id": 0}).to_list(1000)
     return services
 
+@api_router.get("/services/{service_id}", response_model=Service)
+async def get_service(service_id: str, current_user: User = Depends(get_current_user)):
+    service = await db.services.find_one({"id": service_id}, {"_id": 0})
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    return service
+
+@api_router.put("/services/{service_id}", response_model=Service)
+async def update_service(service_id: str, service_data: ServiceUpdate, current_user: User = Depends(get_current_user)):
+    service = await db.services.find_one({"id": service_id}, {"_id": 0})
+    if not service:
+        raise HTTPException(status_code=404, detail="Service not found")
+    
+    update_data = {k: v for k, v in service_data.model_dump().items() if v is not None}
+    if update_data:
+        await db.services.update_one({"id": service_id}, {"$set": update_data})
+        service.update(update_data)
+    
+    return Service(**service)
+
+# Routes - Products
+@api_router.post("/products", response_model=Product)
+async def create_product(product_data: ProductCreate, current_user: User = Depends(get_current_user)):
+    product = Product(**product_data.model_dump())
+    doc = product.model_dump()
+    await db.products.insert_one(doc)
+    return product
+
+@api_router.get("/products", response_model=List[Product])
+async def get_products(current_user: User = Depends(get_current_user)):
+    products = await db.products.find({"is_active": True}, {"_id": 0}).to_list(1000)
+    return products
+
+@api_router.put("/products/{product_id}", response_model=Product)
+async def update_product(product_id: str, product_data: ProductUpdate, current_user: User = Depends(get_current_user)):
+    product = await db.products.find_one({"id": product_id}, {"_id": 0})
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    
+    update_data = {k: v for k, v in product_data.model_dump().items() if v is not None}
+    if update_data:
+        await db.products.update_one({"id": product_id}, {"$set": update_data})
+        product.update(update_data)
+    
+    return Product(**product)
+
 # Routes - Inventory
 @api_router.post("/inventory", response_model=InventoryItem)
 async def create_inventory_item(item_data: InventoryItemCreate, current_user: User = Depends(get_current_user)):
