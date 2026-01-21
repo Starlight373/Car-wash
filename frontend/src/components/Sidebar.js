@@ -12,7 +12,8 @@ import {
   Settings,
   LogOut,
   Clock,
-  Sparkles
+  Sparkles,
+  Receipt
 } from 'lucide-react';
 
 export const Sidebar = () => {
@@ -25,6 +26,7 @@ export const Sidebar = () => {
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/pos', icon: ShoppingCart, label: 'POS' },
     { path: '/shift', icon: Clock, label: 'Shift Management' },
+    { path: '/transactions', icon: Receipt, label: user?.role === 'kasir' ? 'Transaksi Saya' : 'Transaksi' },
     { path: '/customers', icon: Users, label: 'Customers' },
     { path: '/memberships', icon: CreditCard, label: 'Memberships' },
     { path: '/inventory', icon: Package, label: 'Inventory' },
