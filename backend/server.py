@@ -936,12 +936,6 @@ async def delete_inventory_item(item_id: str, current_user: User = Depends(get_c
         raise HTTPException(status_code=404, detail="Item not found")
     return {"message": "Item deleted successfully"}
 
-@api_router.get("/inventory/low-stock")
-async def get_low_stock(current_user: User = Depends(get_current_user)):
-    items = await db.inventory.find({}, {"_id": 0}).to_list(1000)
-    low_stock = [item for item in items if item['current_stock'] <= item['min_stock']]
-    return low_stock
-
 # Routes - Transactions
 @api_router.post("/transactions", response_model=Transaction)
 async def create_transaction(transaction_data: TransactionCreate, current_user: User = Depends(get_current_user)):
