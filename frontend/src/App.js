@@ -12,6 +12,7 @@ import { CustomersPage } from "./pages/CustomersPage";
 import { MembershipsPage } from "./pages/MembershipsPage";
 import { InventoryPage } from "./pages/InventoryPage";
 import { ServicesPage } from "./pages/ServicesPage";
+import { ProductsPage } from "./pages/ProductsPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
