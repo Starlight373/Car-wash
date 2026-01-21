@@ -36,6 +36,7 @@ export const MembershipsPage = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
   const [selectedType, setSelectedType] = useState('');
   const [price, setPrice] = useState('');
+  const [membershipNotes, setMembershipNotes] = useState('');
   const [filter, setFilter] = useState('all'); // all, active, expiring, expired
   
   useEffect(() => {
@@ -76,12 +77,14 @@ export const MembershipsPage = () => {
         customer_id: selectedCustomerId,
         membership_type: selectedType,
         price: parseFloat(price),
+        notes: membershipNotes || null,
       });
       toast.success('Membership berhasil dibuat');
       setShowAddDialog(false);
       setSelectedCustomerId('');
       setSelectedType('');
       setPrice('');
+      setMembershipNotes('');
       fetchMemberships();
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Gagal membuat membership');
@@ -306,6 +309,18 @@ export const MembershipsPage = () => {
                 data-testid="membership-price-input"
                 className="bg-zinc-900/50 border-zinc-800 text-white font-mono"
                 placeholder="0"
+              />
+            </div>
+            
+            <div>
+              <Label className="text-zinc-400 mb-2">Catatan (Opsional)</Label>
+              <Input
+                type="text"
+                value={membershipNotes}
+                onChange={(e) => setMembershipNotes(e.target.value)}
+                data-testid="membership-notes-input"
+                className="bg-zinc-900/50 border-zinc-800 text-white"
+                placeholder="Catatan membership..."
               />
             </div>
             
