@@ -481,6 +481,35 @@ async def get_customer(customer_id: str, current_user: User = Depends(get_curren
         customer['join_date'] = datetime.fromisoformat(customer['join_date'])
     return customer
 
+@api_router.put("/customers/{customer_id}", response_model=Customer)
+async def update_customer(customer_id: str, customer_data: CustomerUpdate, current_user: User = Depends(get_current_user)):
+    customer = await db.customers.find_one({"id": customer_id}, {"_id": 0})
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    update_data = {k: v for k, v in customer_data.model_dump().items() if v is not None}
+    if update_data:
+        await db.customers.update_one({"id": customer_id}, {"$set": update_data})
+        customer.update(update_data)
+    
+    if isinstance(customer.get('join_date'), str):
+        customer['join_date'] = datetime.fromisoformat(customer['join_date'])
+    
+    return Customer(**customer)
+
+@api_router.get("/customers/{customer_id}/transactions")
+async def get_customer_transactions(customer_id: str, current_user: User = Depends(get_current_user)):
+    transactions = await db.transactions.find(
+        {"customer_id": customer_id}, 
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(1000)
+    
+    for t in transactions:
+        if isinstance(t.get('created_at'), str):
+            t['created_at'] = datetime.fromisoformat(t['created_at'])
+    
+    return transactions
+
 # Routes - Memberships
 @api_router.post("/memberships", response_model=Membership)
 async def create_membership(membership_data: MembershipCreate, current_user: User = Depends(get_current_user)):
