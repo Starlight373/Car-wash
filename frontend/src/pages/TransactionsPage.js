@@ -62,11 +62,15 @@ export const TransactionsPage = () => {
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       filtered = filtered.filter(t => new Date(t.created_at) >= today);
     } else if (dateFilter === 'week') {
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(t => new Date(t.created_at) >= weekAgo);
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - 7);
+      weekStart.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(t => new Date(t.created_at) >= weekStart);
     } else if (dateFilter === 'month') {
-      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      filtered = filtered.filter(t => new Date(t.created_at) >= monthAgo);
+      const monthStart = new Date(now);
+      monthStart.setDate(now.getDate() - 30);
+      monthStart.setHours(0, 0, 0, 0);
+      filtered = filtered.filter(t => new Date(t.created_at) >= monthStart);
     }
     
     setFilteredTransactions(filtered);
