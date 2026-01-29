@@ -13,6 +13,7 @@ from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
 from enum import Enum
+from whatsapp_helper import whatsapp
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -30,6 +31,16 @@ JWT_EXPIRATION = 24  # hours
 security = HTTPBearer()
 
 app = FastAPI()
+
+# CORS Middleware - MUST be added before routes
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 api_router = APIRouter(prefix="/api")
 
 # Enums
@@ -56,6 +67,10 @@ class PaymentMethod(str, Enum):
     CARD = "card"
     QR = "qr"
     SUBSCRIPTION = "subscription"  # For member usage with Rp 0
+
+class PromotionType(str, Enum):
+    PERCENTAGE = "percentage"
+    FIXED_AMOUNT = "fixed_amount"
 
 # Models
 class Outlet(BaseModel):
@@ -131,19 +146,84 @@ class ShiftClose(BaseModel):
     closing_balance: float
     notes: Optional[str] = None
 
+class CashDenomination(BaseModel):
+    d100k: int = 0
+    d50k: int = 0
+    d20k: int = 0
+    d10k: int = 0
+    d5k: int = 0
+    d2k: int = 0
+    d1k: int = 0
+    coins: float = 0
+    total: float = 0
+
+class PettyCashLog(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    shift_id: str
+    amount: float
+    category: str  # e.g., "Operational", "Refund", "Cash Drop"
+    description: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_by_id: str
+    created_by_name: str
+
 class Shift(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     kasir_id: str
     kasir_name: str
     opening_balance: float
+    opening_denominations: Optional[CashDenomination] = None
+    
     closing_balance: Optional[float] = None
+    closing_denominations: Optional[CashDenomination] = None
+    
+    petty_cash_total: float = 0
+    cash_drop_total: float = 0
+    
     expected_balance: Optional[float] = None
     variance: Optional[float] = None
+    
     opened_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     closed_at: Optional[datetime] = None
     status: str = "open"  # open, closed
     notes: Optional[str] = None
+
+class ShiftOpen(BaseModel):
+    kasir_id: str
+    opening_balance: float
+    denominations: Optional[CashDenomination] = None
+
+class ShiftClose(BaseModel):
+    shift_id: str
+    closing_balance: float
+    denominations: Optional[CashDenomination] = None
+    notes: Optional[str] = None
+
+class Expense(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    category: str
+    amount: float
+    description: Optional[str] = None
+    payment_method: str = "transfer" # transfer, cash, etc
+    created_by: str
+
+class PettyCashCreate(BaseModel):
+    shift_id: str
+    amount: float
+    category: str
+    description: str
+
+class CommissionPayout(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    user_id: str
+    amount: float
+    date: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    notes: Optional[str] = None
+    created_by: str
 
 class Customer(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -204,6 +284,7 @@ class Service(BaseModel):
     price: float
     duration_minutes: int
     category: str  # exterior, interior, detailing, etc
+    commission_rate: float = 0.0  # Percentage of commission for technician
     is_active: bool = True
 
 class ServiceCreate(BaseModel):
@@ -212,6 +293,7 @@ class ServiceCreate(BaseModel):
     price: float
     duration_minutes: int
     category: str
+    commission_rate: float = 0.0
 
 class InventoryItem(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -250,6 +332,24 @@ class InventoryItemUpdate(BaseModel):
     supplier: Optional[str] = None
     is_active: Optional[bool] = None
 
+class InventoryLog(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    inventory_id: str
+    inventory_name: str
+    change_amount: float
+    previous_stock: float
+    new_stock: float
+    reason: str
+    user_id: str
+    user_name: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class StockAdjustmentRequest(BaseModel):
+    amount: float
+    type: str # 'add' or 'subtract'
+    reason: str
+
 # BOM (Bill of Materials) for services
 class BOMItem(BaseModel):
     inventory_id: str
@@ -265,8 +365,10 @@ class Service(BaseModel):
     price: float
     duration_minutes: int
     category: str  # exterior, interior, detailing, etc
+    commission_rate: float = 0.0
     is_active: bool = True
     bom: Optional[List[dict]] = []  # Bill of Materials
+    image_url: Optional[str] = None  # Service image URL
 
 class ServiceCreate(BaseModel):
     name: str
@@ -274,7 +376,9 @@ class ServiceCreate(BaseModel):
     price: float
     duration_minutes: int
     category: str
+    commission_rate: float = 0.0
     bom: Optional[List[dict]] = []
+    image_url: Optional[str] = None
 
 class ServiceUpdate(BaseModel):
     name: Optional[str] = None
@@ -282,8 +386,10 @@ class ServiceUpdate(BaseModel):
     price: Optional[float] = None
     duration_minutes: Optional[int] = None
     category: Optional[str] = None
+    commission_rate: Optional[float] = None
     is_active: Optional[bool] = None
     bom: Optional[List[dict]] = None
+    image_url: Optional[str] = None
 
 # Physical Products (for sale)
 class Product(BaseModel):
@@ -294,6 +400,8 @@ class Product(BaseModel):
     price: float
     category: str
     inventory_id: Optional[str] = None  # Link to inventory
+    image_url: Optional[str] = None  # Product image
+    min_stock_level: int = 5  # Alert threshold for low stock
     is_active: bool = True
 
 class ProductCreate(BaseModel):
@@ -302,6 +410,8 @@ class ProductCreate(BaseModel):
     price: float
     category: str
     inventory_id: Optional[str] = None
+    image_url: Optional[str] = None
+    min_stock_level: int = 5
 
 class ProductUpdate(BaseModel):
     name: Optional[str] = None
@@ -310,6 +420,8 @@ class ProductUpdate(BaseModel):
     category: Optional[str] = None
     inventory_id: Optional[str] = None
     is_active: Optional[bool] = None
+    image_url: Optional[str] = None
+    min_stock_level: Optional[int] = None
 
 class Transaction(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -328,6 +440,7 @@ class Transaction(BaseModel):
     change_amount: float
     cogs: float = 0.0
     gross_margin: float = 0.0
+    total_commission: float = 0.0  # Total commission for this transaction
     notes: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -337,6 +450,67 @@ class TransactionCreate(BaseModel):
     payment_method: PaymentMethod
     payment_received: float
     notes: Optional[str] = None
+
+class Promotion(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    code: str
+    name: str
+    description: Optional[str] = None
+    promotion_type: PromotionType
+    value: float
+    min_purchase: float = 0
+    max_discount: Optional[float] = None
+    start_date: datetime
+    end_date: datetime
+    usage_limit: Optional[int] = None
+    usage_count: int = 0
+    is_active: bool = True
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class PromotionCreate(BaseModel):
+    code: str
+    name: str
+    description: Optional[str] = None
+    promotion_type: PromotionType
+    value: float
+    min_purchase: float = 0
+    max_discount: Optional[float] = None
+    start_date: datetime
+    end_date: datetime
+    usage_limit: Optional[int] = None
+
+class PromotionUpdate(BaseModel):
+    code: Optional[str] = None
+    name: Optional[str] = None
+    description: Optional[str] = None
+    promotion_type: Optional[PromotionType] = None
+    value: Optional[float] = None
+    min_purchase: Optional[float] = None
+    max_discount: Optional[float] = None
+    start_date: Optional[datetime] = None
+    end_date: Optional[datetime] = None
+    usage_limit: Optional[int] = None
+    is_active: Optional[bool] = None
+
+class ValidatePromoRequest(BaseModel):
+    code: str
+    subtotal: float
+
+class NotificationService:
+    @staticmethod
+    async def send_whatsapp(phone: str, message: str):
+        # In production this would call an API like Twilio or WA Gateway
+        print(f"==========================================")
+        print(f"SIMULATED WA SEND to {phone}:")
+        print(f"{message}")
+        print(f"==========================================")
+        return True
+
+class SendReceiptRequest(BaseModel):
+    transaction_id: str
+    phone: str
+
 
 # Helper Functions
 def hash_password(password: str) -> str:
@@ -416,6 +590,15 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 # Routes - Users
+@api_router.get("/users/staff", response_model=List[dict])
+async def get_staff_list(current_user: User = Depends(get_current_user)):
+    # Allow all authenticated users to see staff list (for POS selection)
+    users = await db.users.find(
+        {"role": {"$in": [UserRole.TEKNISI, UserRole.MANAGER, UserRole.OWNER]}, "is_active": True}, 
+        {"id": 1, "full_name": 1, "role": 1, "_id": 0}
+    ).to_list(1000)
+    return users
+
 @api_router.get("/users", response_model=List[User])
 async def get_users(current_user: User = Depends(get_current_user)):
     if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
@@ -560,14 +743,49 @@ async def open_shift(shift_data: ShiftOpen, current_user: User = Depends(get_cur
     shift = Shift(
         kasir_id=shift_data.kasir_id,
         kasir_name=current_user.full_name,
-        opening_balance=shift_data.opening_balance
+        opening_balance=shift_data.opening_balance,
+        opening_denominations=shift_data.denominations
     )
     
     doc = shift.model_dump()
     doc['opened_at'] = doc['opened_at'].isoformat()
+    # Handle denominations nested model
+    if doc.get('opening_denominations'):
+        doc['opening_denominations'] = shift_data.denominations.model_dump()
     
     await db.shifts.insert_one(doc)
     return shift
+
+@api_router.post("/shifts/petty-cash", response_model=PettyCashLog)
+async def add_petty_cash(data: PettyCashCreate, current_user: User = Depends(get_current_user)):
+    shift = await db.shifts.find_one({"id": data.shift_id}, {"_id": 0})
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    if shift['status'] != 'open':
+        raise HTTPException(status_code=400, detail="Shift is closed")
+
+    log = PettyCashLog(
+        shift_id=data.shift_id,
+        amount=data.amount,
+        category=data.category,
+        description=data.description,
+        created_by_id=current_user.id,
+        created_by_name=current_user.full_name
+    )
+    
+    log_doc = log.model_dump()
+    log_doc['created_at'] = log_doc['created_at'].isoformat()
+    
+    await db.petty_cash_logs.insert_one(log_doc)
+    
+    # Update shift totals
+    field_to_update = "cash_drop_total" if data.category == "Cash Drop" else "petty_cash_total"
+    await db.shifts.update_one(
+        {"id": data.shift_id},
+        {"$inc": {field_to_update: data.amount}}
+    )
+    
+    return log
 
 @api_router.post("/shifts/close", response_model=Shift)
 async def close_shift(shift_data: ShiftClose, current_user: User = Depends(get_current_user)):
@@ -581,11 +799,19 @@ async def close_shift(shift_data: ShiftClose, current_user: User = Depends(get_c
     # Calculate expected balance
     transactions = await db.transactions.find({"shift_id": shift_data.shift_id}).to_list(1000)
     cash_transactions = [t for t in transactions if t.get('payment_method') == 'cash']
-    total_cash = sum(t.get('total', 0) for t in cash_transactions)
-    expected_balance = shift_doc['opening_balance'] + total_cash
+    total_cash_sales = sum(t.get('total', 0) for t in cash_transactions)
+    
+    # Get current petty cash and drop totals from DB (in case of race conditions, though simple increment was used)
+    # We can trust shift_doc if we re-fetch or just use the values.
+    # Actually, we should use the values from doc since we updated them incrementally.
+    petty_cash = shift_doc.get('petty_cash_total', 0)
+    cash_drop = shift_doc.get('cash_drop_total', 0)
+    
+    expected_balance = shift_doc['opening_balance'] + total_cash_sales - petty_cash - cash_drop
     variance = shift_data.closing_balance - expected_balance
     
     shift_doc['closing_balance'] = shift_data.closing_balance
+    shift_doc['closing_denominations'] = shift_data.denominations.model_dump() if shift_data.denominations else None
     shift_doc['expected_balance'] = expected_balance
     shift_doc['variance'] = variance
     shift_doc['closed_at'] = datetime.now(timezone.utc).isoformat()
@@ -600,6 +826,50 @@ async def close_shift(shift_data: ShiftClose, current_user: User = Depends(get_c
         shift_doc['closed_at'] = datetime.fromisoformat(shift_doc['closed_at'])
     
     return Shift(**shift_doc)
+
+@api_router.get("/shifts/{shift_id}/summary")
+async def get_shift_summary(shift_id: str, current_user: User = Depends(get_current_user)):
+    """Get shift summary before closing - shows transactions, revenue, and expected balance"""
+    shift = await db.shifts.find_one({"id": shift_id}, {"_id": 0})
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    
+    # Get all transactions for this shift
+    transactions = await db.transactions.find({"shift_id": shift_id}).to_list(1000)
+    
+    # Calculate payment breakdown
+    payment_breakdown = {
+        "cash": 0,
+        "card": 0,
+        "qr": 0,
+        "subscription": 0
+    }
+    
+    total_revenue = 0
+    for txn in transactions:
+        payment_method = txn.get('payment_method', 'cash')
+        amount = txn.get('total', 0)
+        total_revenue += amount
+        
+        if payment_method in payment_breakdown:
+            payment_breakdown[payment_method] += amount
+    
+    # Calculate expected balance (what should be in the drawer)
+    # Expected = Opening + Cash Sales - Petty Cash - Cash Drop
+    cash_sales = payment_breakdown.get('cash', 0)
+    petty_cash = shift.get('petty_cash_total', 0)
+    cash_drop = shift.get('cash_drop_total', 0)
+    expected_balance = shift.get('opening_balance', 0) + cash_sales - petty_cash - cash_drop
+    
+    return {
+        "transaction_count": len(transactions),
+        "total_revenue": total_revenue,
+        "payment_breakdown": payment_breakdown,
+        "expected_balance": expected_balance,
+        "cash_sales": cash_sales,
+        "petty_cash_total": petty_cash,
+        "cash_drop_total": cash_drop
+    }
 
 @api_router.get("/shifts/current/{kasir_id}")
 async def get_current_shift(kasir_id: str, current_user: User = Depends(get_current_user)):
@@ -1065,6 +1335,48 @@ async def delete_inventory_item(item_id: str, current_user: User = Depends(get_c
         raise HTTPException(status_code=404, detail="Item not found")
     return {"message": "Item deleted successfully"}
 
+@api_router.post("/inventory/{item_id}/adjust")
+async def adjust_stock(
+    item_id: str, 
+    adjustment: StockAdjustmentRequest, 
+    current_user: User = Depends(get_current_user)
+):
+    item = await db.inventory.find_one({"id": item_id}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Item not found")
+        
+    previous_stock = item['current_stock']
+    change = adjustment.amount if adjustment.type == 'add' else -adjustment.amount
+    new_stock = previous_stock + change
+    
+    if new_stock < 0:
+        raise HTTPException(status_code=400, detail="Stock cannot be negative")
+        
+    # Update item
+    await db.inventory.update_one(
+        {"id": item_id},
+        {"$set": {"current_stock": new_stock}}
+    )
+    
+    # Create Log
+    log = InventoryLog(
+        inventory_id=item_id,
+        inventory_name=item['name'],
+        change_amount=change,
+        previous_stock=previous_stock,
+        new_stock=new_stock,
+        reason=adjustment.reason,
+        user_id=current_user.id,
+        user_name=current_user.full_name
+    )
+    
+    doc = log.model_dump()
+    doc['created_at'] = doc['created_at'].isoformat()
+    await db.inventory_logs.insert_one(doc)
+    
+    return {"message": "Stock adjusted successfully", "new_stock": new_stock}
+
+
 # Routes - Transactions
 @api_router.post("/transactions", response_model=Transaction)
 async def create_transaction(transaction_data: TransactionCreate, current_user: User = Depends(get_current_user)):
@@ -1088,6 +1400,36 @@ async def create_transaction(transaction_data: TransactionCreate, current_user: 
         if customer:
             customer_name = customer['name']
     
+    # Calculate Commission
+    total_commission = 0.0
+    items_with_commission = []
+    
+    for item in transaction_data.items:
+        commission_amount = 0.0
+        
+        # If item has a service_id and a technician_id is provided in the item (needs updatting frontend/transactioncreate model)
+        # Assuming frontend sends: {..., "technician_id": "uuid", "technician_name": "Name"} for services
+        
+        # Check if service
+        if item.get('service_id'):
+            # Fetch service to get commission rate
+            service_item = await db.services.find_one({"id": item['service_id']}, {"_id": 0})
+            if service_item and service_item.get('commission_rate', 0) > 0:
+                # Calculate commission: Price * Rate / 100 * Quantity
+                # Note: Commission should probably be based on Price AFTER discount? 
+                # For now let's base on Item Price * Quantity. 
+                # If transaction has global discount, this might be standardized. 
+                # Let's effectively use item price.
+                
+                commission_amount = (item['price'] * item['quantity']) * (service_item['commission_rate'] / 100)
+        
+        # Add commission data to the item dict if valid
+        item['commission_amount'] = commission_amount
+        if commission_amount > 0:
+            total_commission += commission_amount
+            
+        items_with_commission.append(item)
+    
     # Generate invoice number
     today = datetime.now(timezone.utc)
     invoice_prefix = today.strftime("%Y%m%d")
@@ -1110,12 +1452,13 @@ async def create_transaction(transaction_data: TransactionCreate, current_user: 
         customer_id=transaction_data.customer_id,
         customer_name=customer_name,
         shift_id=shift['id'],
-        items=transaction_data.items,
+        items=items_with_commission,
         subtotal=subtotal,
         total=total,
         payment_method=transaction_data.payment_method,
         payment_received=transaction_data.payment_received,
         change_amount=change_amount,
+        total_commission=total_commission,
         notes=transaction_data.notes
     )
     
@@ -1300,16 +1643,415 @@ async def get_public_services():
     services = await db.services.find({"is_active": True}, {"_id": 0}).to_list(1000)
     return services
 
-# Include router
-app.include_router(api_router)
+# Routes - Promotions
+@api_router.get("/promotions", response_model=List[Promotion])
+async def get_promotions(current_user: User = Depends(get_current_user)):
+    promotions = await db.promotions.find({}, {"_id": 0}).to_list(1000)
+    # Convert dates
+    for p in promotions:
+        if isinstance(p.get('start_date'), str):
+            p['start_date'] = datetime.fromisoformat(p['start_date'])
+        if isinstance(p.get('end_date'), str):
+            p['end_date'] = datetime.fromisoformat(p['end_date'])
+        if isinstance(p.get('created_at'), str):
+            p['created_at'] = datetime.fromisoformat(p['created_at'])
+    return promotions
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@api_router.post("/promotions", response_model=Promotion)
+async def create_promotion(promo_data: PromotionCreate, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    # Check duplicate code
+    existing = await db.promotions.find_one({"code": promo_data.code, "is_active": True}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Promotion code already exists")
+    
+    promo = Promotion(**promo_data.model_dump())
+    
+    doc = promo.model_dump()
+    doc['start_date'] = doc['start_date'].isoformat()
+    doc['end_date'] = doc['end_date'].isoformat()
+    doc['created_at'] = doc['created_at'].isoformat()
+    
+    await db.promotions.insert_one(doc)
+    return promo
+
+@api_router.put("/promotions/{promo_id}")
+async def update_promotion(promo_id: str, update_data: PromotionUpdate, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    promo = await db.promotions.find_one({"id": promo_id}, {"_id": 0})
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promotion not found")
+        
+    filtered_data = {k: v for k, v in update_data.model_dump().items() if v is not None}
+    
+    if 'code' in filtered_data:
+        existing = await db.promotions.find_one({"code": filtered_data['code'], "id": {"$ne": promo_id}, "is_active": True})
+        if existing:
+            raise HTTPException(status_code=400, detail="Promotion code already in use")
+            
+    if 'start_date' in filtered_data:
+        filtered_data['start_date'] = filtered_data['start_date'].isoformat()
+    if 'end_date' in filtered_data:
+        filtered_data['end_date'] = filtered_data['end_date'].isoformat()
+        
+    await db.promotions.update_one({"id": promo_id}, {"$set": filtered_data})
+    
+    return {"message": "Promotion updated successfully"}
+
+@api_router.delete("/promotions/{promo_id}")
+async def delete_promotion(promo_id: str, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    result = await db.promotions.delete_one({"id": promo_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Promotion not found")
+        
+    return {"message": "Promotion deleted successfully"}
+
+@api_router.post("/promotions/validate")
+async def validate_promotion(request: ValidatePromoRequest, current_user: User = Depends(get_current_user)):
+    code = request.code
+    subtotal = request.subtotal
+    
+    promo = await db.promotions.find_one({"code": code, "is_active": True}, {"_id": 0})
+    if not promo:
+        raise HTTPException(status_code=404, detail="Invalid promotion code")
+        
+    # Check expiry
+    start_date = datetime.fromisoformat(promo['start_date']) if isinstance(promo['start_date'], str) else promo['start_date']
+    end_date = datetime.fromisoformat(promo['end_date']) if isinstance(promo['end_date'], str) else promo['end_date']
+    
+    # Fix: Ensure comparison works. 
+    # Use timezone.utc if dates are aware, or naive if naive. 
+    # Since we store as isoformat from datetime.now(timezone.utc), they are offset-aware if parsed correct.
+    # fromisoformat handles offsets.
+    
+    now_utc = datetime.now(timezone.utc)
+    
+    # Ensure start_date/end_date are aware
+    if start_date.tzinfo is None:
+        start_date = start_date.replace(tzinfo=timezone.utc)
+    if end_date.tzinfo is None:
+        end_date = end_date.replace(tzinfo=timezone.utc)
+    
+    if now_utc < start_date:
+        raise HTTPException(status_code=400, detail="Promotion has not started yet")
+    if now_utc > end_date:
+        raise HTTPException(status_code=400, detail="Promotion expired")
+        
+    # Check limit
+    if promo.get('usage_limit') is not None and promo['usage_count'] >= promo['usage_limit']:
+        raise HTTPException(status_code=400, detail="Promotion usage limit reached")
+        
+    # Check min purchase
+    if subtotal < promo['min_purchase']:
+        raise HTTPException(status_code=400, detail=f"Minimum purchase Rp {promo['min_purchase']} required")
+        
+    # Calculate discount
+    discount_amount = 0
+    if promo['promotion_type'] == PromotionType.FIXED_AMOUNT:
+        discount_amount = promo['value']
+    else:
+        discount_amount = (promo['value'] / 100) * subtotal
+        if promo.get('max_discount'):
+             discount_amount = min(discount_amount, promo['max_discount'])
+             
+    # Cap at subtotal
+    discount_amount = min(discount_amount, subtotal)
+    
+    return {
+        "valid": True,
+        "promo": promo,
+        "discount_amount": discount_amount
+    }
+
+# Include router
+# Routes - Notifications (WhatsApp)
+@api_router.post("/notifications/send-receipt")
+async def send_receipt_notification(request: SendReceiptRequest, current_user: User = Depends(get_current_user)):
+    transaction = await db.transactions.find_one({"id": request.transaction_id}, {"_id": 0})
+    if not transaction:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Format message
+    items_str = "\n".join([f"- {item.get('name', 'Item')} x{item['quantity']}" for item in transaction['items']])
+    message = f"""*OTOPIA Car Wash*
+Invoice: {transaction['invoice_number']}
+Tanggal: {transaction['created_at'].strftime('%d/%m/%Y %H:%M') if isinstance(transaction['created_at'], datetime) else transaction['created_at']}
+
+Detail:
+{items_str}
+
+Total: Rp {transaction['total']:,}
+Metode: {transaction['payment_method']}
+
+Terima kasih atas kunjungan Anda!"""
+
+    await NotificationService.send_whatsapp(request.phone, message)
+    return {"message": "Receipt sent to WhatsApp"}
+
+@api_router.post("/notifications/check-expiring")
+async def check_expiring_memberships_notification(current_user: User = Depends(get_current_user)):
+    # Find memberships expiring in exactly 3 days
+    now = datetime.now(timezone.utc)
+    target_date = now + timedelta(days=3)
+    start_of_day = target_date.replace(hour=0, minute=0, second=0, microsecond=0)
+    end_of_day = target_date.replace(hour=23, minute=59, second=59, microsecond=999)
+    
+    # This query is simplified; in reality stored dates might be strings or objects
+    # Assuming ISO format strings for simplicity based on previous code
+    
+    memberships = await db.memberships.find({
+        "status": "active",
+        "end_date": {"$gte": start_of_day.isoformat(), "$lte": end_of_day.isoformat()}
+    }).to_list(100)
+    
+    count = 0
+    for m in memberships:
+        customer = await db.customers.find_one({"id": m['customer_id']}, {"_id": 0})
+        if customer and customer.get('phone'):
+            msg = f"Halo {customer['name']}, Membership {m['membership_type']} Anda di OTOPIA akan berakhir pada {m['end_date']}. Segera perpanjang!"
+            await NotificationService.send_whatsapp(customer['phone'], msg)
+            count += 1
+            
+    return {"message": f"Sent {count} reminders"}
+
+# Expenses Endpoints
+@api_router.get("/expenses", response_model=List[Expense])
+async def get_expenses():
+    expenses = await db.expenses.find().sort("date", -1).to_list(1000)
+    for expense in expenses:
+        if isinstance(expense.get('date'), str):
+            expense['date'] = datetime.fromisoformat(expense['date'])
+    return expenses
+
+@api_router.post("/expenses", response_model=Expense)
+async def create_expense(expense: Expense, current_user: User = Depends(get_current_user)):
+    doc = expense.model_dump()
+    doc['date'] = doc['date'].isoformat()
+    doc['created_by'] = current_user.full_name
+    await db.expenses.insert_one(doc)
+    return expense
+
+@api_router.delete("/expenses/{expense_id}")
+async def delete_expense(expense_id: str, current_user: User = Depends(get_current_user)):
+    result = await db.expenses.delete_one({"id": expense_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    return {"status": "success"}
+
+# Routes - Commission Payouts
+@api_router.get("/payouts", response_model=List[CommissionPayout])
+async def get_payouts():
+    payouts = await db.payouts.find().sort("date", -1).to_list(1000)
+    for p in payouts:
+        if isinstance(p.get('date'), str):
+            p['date'] = datetime.fromisoformat(p['date'])
+    return payouts
+
+@api_router.post("/payouts", response_model=CommissionPayout)
+async def create_payout(payout: CommissionPayout, current_user: User = Depends(get_current_user)):
+    doc = payout.model_dump()
+    doc['date'] = doc['date'].isoformat()
+    doc['created_by'] = current_user.full_name
+    
+    # Store as payout record
+    await db.payouts.insert_one(doc)
+    
+    # Also log as an Operational Expense automatically? 
+    # Decision: Optional. For now let's keep them separate to avoid double counting if P&L aggregates both.
+    # But usually Payout IS an expense (`Gaji/Komisi`). 
+    # Let's auto-create an Expense entry for P&L visibility.
+    
+    expense = Expense(
+        category="Gaji & Komisi",
+        amount=payout.amount,
+        description=f"Commission Payout for {payout.user_id} - {payout.notes or ''}",
+        created_by=current_user.full_name,
+        date=payout.date
+    )
+    exp_doc = expense.model_dump()
+    exp_doc['date'] = exp_doc['date'].isoformat()
+    await db.expenses.insert_one(exp_doc)
+    
+    return payout
+
+# Routes - Landing Page CMS
+class LandingPageConfig(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str = "default"  # Singleton
+    hero_title_1: str = "Experience the"
+    hero_title_2: str = "Ultimate Shine"
+    hero_subtitle: str = "Premium car wash & auto detailing service di Semarang. Teknologi Nano Ceramic Coating terbaru untuk perlindungan maksimal kendaraan Anda."
+    open_hours: str = "08:00 - 18:00"
+    contact_phone: str = "0822-2702-5335"
+    contact_address: str = "Jl. Sukun Raya No.47C, Banyumanik, Semarang"
+    contact_maps_url: str = "https://maps.google.com/?q=OTOPIA+Semarang+Jl.+Sukun+Raya+No.47C"
+    contact_instagram: str = "@otopia.semarang"
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+@api_router.get("/public/landing-config", response_model=LandingPageConfig)
+async def get_landing_config():
+    config = await db.landing_config.find_one({"id": "default"}, {"_id": 0})
+    if not config:
+        # Return default defaults if not found
+        return LandingPageConfig()
+    return config
+
+@api_router.put("/landing-config", response_model=LandingPageConfig)
+async def update_landing_config(config_data: LandingPageConfig, current_user: User = Depends(get_current_user)):
+    if current_user.role not in [UserRole.OWNER, UserRole.MANAGER]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    config_dict = config_data.model_dump()
+    config_dict['updated_at'] = datetime.now(timezone.utc).isoformat()
+    
+    await db.landing_config.update_one(
+        {"id": "default"},
+        {"$set": config_dict},
+        upsert=True
+    )
+    
+    return config_data
+
+# ============================================
+# WhatsApp Endpoints
+# ============================================
+
+@api_router.get("/whatsapp/status")
+async def get_whatsapp_status(current_user: User = Depends(get_current_user)):
+    """Get WhatsApp service connection status"""
+    try:
+        status = whatsapp.get_status()
+        return status
+    except Exception as e:
+        return {
+            "status": "error",
+            "whatsapp_ready": False,
+            "error": str(e)
+        }
+
+@api_router.post("/whatsapp/send-test")
+async def send_test_whatsapp(
+    phone: str,
+    message: str = "Test message from OTOPIA Car Wash POS",
+    current_user: User = Depends(get_current_user)
+):
+    """Send test WhatsApp message"""
+    if current_user.role not in ['owner', 'manager']:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    try:
+        result = whatsapp.send_message(phone, message)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Duplicate return statement issue (line 1877), keeping only the latest config_data return
+# Removed: return {"message": f"Sent reminders to {count} customers"}
+
+# ============================================
+# Notifications Endpoints
+# ============================================
+
+class SendReceiptRequest(BaseModel):
+    transaction_id: str
+    phone: str
+
+@api_router.post("/notifications/send-receipt")
+async def send_receipt_notification(
+    request: SendReceiptRequest,
+    current_user: User = Depends(get_current_user)
+):
+    """Send WhatsApp receipt for a transaction"""
+    try:
+        # Get transaction details
+        transaction = await db.transactions.find_one({"id": request.transaction_id}, {"_id": 0})
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        # Prepare items for receipt
+        receipt_items = []
+        for item in transaction.get('items', []):
+            receipt_items.append({
+                'name': item.get('service_name', 'Unknown'),
+                'quantity': item.get('quantity', 1),
+                'price': item.get('price', 0)
+            })
+        
+        # Send via WhatsApp
+        result = whatsapp.send_receipt(
+            phone=request.phone,
+            transaction=transaction,
+            items=receipt_items
+        )
+        
+        if result.get('success'):
+            return {"success": True, "message": f"Receipt sent to {request.phone}"}
+        else:
+            raise HTTPException(status_code=500, detail=result.get('error', 'Failed to send WhatsApp'))
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Failed to send receipt: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@api_router.get("/shifts/{shift_id}/details")
+async def get_shift_details(shift_id: str, current_user: User = Depends(get_current_user)):
+    shift = await db.shifts.find_one({"id": shift_id}, {"_id": 0})
+    if not shift:
+        raise HTTPException(status_code=404, detail="Shift not found")
+    
+    # Get time range
+    start_time = shift['opened_at']
+    if isinstance(start_time, str):
+        start_time = datetime.fromisoformat(start_time)
+        
+    end_time = shift.get('closed_at')
+    if end_time:
+        if isinstance(end_time, str):
+            end_time = datetime.fromisoformat(end_time)
+    else:
+        end_time = datetime.now(timezone.utc)
+        
+    # Query transactions
+    transactions = await db.transactions.find({
+        "created_at": {
+            "$gte": start_time.isoformat() if isinstance(start_time, datetime) else start_time,
+            "$lte": end_time.isoformat() if isinstance(end_time, datetime) else end_time
+        }
+    }, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    
+    # Calculate summary from actual transactions
+    total_revenue = 0
+    payment_methods = {}
+    
+    for t in transactions:
+        # Convert date for response
+        if isinstance(t.get('created_at'), str):
+            t['created_at'] = datetime.fromisoformat(t['created_at'])
+            
+        total_revenue += t.get('total', 0)
+        method = t.get('payment_method', 'unknown')
+        payment_methods[method] = payment_methods.get(method, 0) + t.get('total', 0)
+        
+    return {
+        "shift": shift,
+        "transactions": transactions,
+        "summary": {
+            "total_revenue": total_revenue,
+            "transaction_count": len(transactions),
+            "payment_methods": payment_methods
+        }
+    }
+
+app.include_router(api_router)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -1320,3 +2062,8 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+if __name__ == '__main__':
+    import uvicorn
+    print(' Starting OTOPIA Car Wash Backend...')
+    uvicorn.run(app, host='0.0.0.0', port=8000, log_level='info')

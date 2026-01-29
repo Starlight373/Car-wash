@@ -31,23 +31,25 @@ export const ServicesPage = () => {
   const [editingService, setEditingService] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [loading, setLoading] = useState(false);
-  
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     price: '',
     duration_minutes: '',
     category: '',
+    image_url: '',
   });
-  
+
   const [bomItems, setBomItems] = useState([]);
   const [newBomItem, setNewBomItem] = useState({ inventory_id: '', quantity: '' });
-  
+
   useEffect(() => {
     fetchServices();
     fetchInventory();
   }, []);
-  
+
   const fetchServices = async () => {
     try {
       const response = await api.get('/services');
@@ -56,7 +58,7 @@ export const ServicesPage = () => {
       toast.error('Gagal memuat data layanan');
     }
   };
-  
+
   const fetchInventory = async () => {
     try {
       const response = await api.get('/inventory');
@@ -65,7 +67,7 @@ export const ServicesPage = () => {
       console.error('Error fetching inventory:', error);
     }
   };
-  
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -73,10 +75,11 @@ export const ServicesPage = () => {
       price: '',
       duration_minutes: '',
       category: '',
+      image_url: '',
     });
     setBomItems([]);
   };
-  
+
   const handleAddService = async () => {
     setLoading(true);
     try {
@@ -101,7 +104,7 @@ export const ServicesPage = () => {
       setLoading(false);
     }
   };
-  
+
   const handleEdit = (service) => {
     setEditingService(service);
     setFormData({
@@ -110,11 +113,12 @@ export const ServicesPage = () => {
       price: service.price.toString(),
       duration_minutes: service.duration_minutes.toString(),
       category: service.category,
+      image_url: service.image_url || '',
     });
     setBomItems(service.bom || []);
     setShowEditDialog(true);
   };
-  
+
   const handleSaveEdit = async () => {
     setLoading(true);
     try {
@@ -140,7 +144,7 @@ export const ServicesPage = () => {
       setLoading(false);
     }
   };
-  
+
   const handleDelete = async () => {
     setLoading(true);
     try {
@@ -154,36 +158,36 @@ export const ServicesPage = () => {
       setLoading(false);
     }
   };
-  
+
   const handleAddBomItem = () => {
     if (!newBomItem.inventory_id || !newBomItem.quantity) {
       toast.error('Pilih item dan masukkan jumlah');
       return;
     }
-    
+
     const inventoryItem = inventory.find(i => i.id === newBomItem.inventory_id);
     if (!inventoryItem) return;
-    
+
     // Check if already exists
     if (bomItems.find(b => b.inventory_id === newBomItem.inventory_id)) {
       toast.error('Item sudah ada di BOM');
       return;
     }
-    
+
     setBomItems([...bomItems, {
       inventory_id: inventoryItem.id,
       inventory_name: inventoryItem.name,
       quantity: parseFloat(newBomItem.quantity),
       unit: inventoryItem.unit
     }]);
-    
+
     setNewBomItem({ inventory_id: '', quantity: '' });
   };
-  
+
   const handleRemoveBomItem = (inventoryId) => {
     setBomItems(bomItems.filter(b => b.inventory_id !== inventoryId));
   };
-  
+
   const groupedServices = services.reduce((acc, service) => {
     if (!acc[service.category]) {
       acc[service.category] = [];
@@ -191,7 +195,7 @@ export const ServicesPage = () => {
     acc[service.category].push(service);
     return acc;
   }, {});
-  
+
   const renderFormFields = () => (
     <div className="space-y-4">
       <div>
@@ -256,7 +260,18 @@ export const ServicesPage = () => {
           />
         </div>
       </div>
-      
+
+      <div>
+        <Label className="text-zinc-400 mb-2">Image URL (Opsional)</Label>
+        <Input
+          value={formData.image_url}
+          onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+          className="bg-zinc-900/50 border-zinc-800 text-white"
+          placeholder="https://example.com/image.jpg"
+        />
+        <p className="text-xs text-zinc-500 mt-1">URL gambar untuk layanan ini</p>
+      </div>
+
       {/* BOM Section */}
       <div className="pt-4 border-t border-zinc-800">
         <Label className="text-zinc-400 mb-2 flex items-center gap-2">
@@ -266,7 +281,7 @@ export const ServicesPage = () => {
         <p className="text-xs text-zinc-500 mb-3">
           Item inventory yang akan dikurangi setiap kali layanan ini digunakan
         </p>
-        
+
         {/* Add BOM Item */}
         <div className="flex gap-2 mb-3">
           <Select
@@ -299,7 +314,7 @@ export const ServicesPage = () => {
             <Plus className="w-4 h-4" />
           </Button>
         </div>
-        
+
         {/* BOM List */}
         {bomItems.length > 0 && (
           <div className="space-y-2">
@@ -323,84 +338,138 @@ export const ServicesPage = () => {
       </div>
     </div>
   );
-  
+
   return (
     <Layout>
       <div className="animate-fade-in" data-testid="services-page">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="font-secondary font-bold text-4xl text-white mb-2">Services</h1>
-            <p className="text-zinc-400">Kelola paket layanan car wash</p>
+        {/* Header */}
+        <div className="mb-6">
+          <p className="text-[#D4AF37] text-sm font-medium tracking-widest uppercase mb-1">Layanan</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-1">Services</h1>
+              <p className="text-zinc-500 text-sm">Kelola paket layanan car wash</p>
+            </div>
+            <Button
+              onClick={() => { resetForm(); setShowAddDialog(true); }}
+              data-testid="add-service-button"
+              className="bg-[#D4AF37] text-black hover:bg-[#B5952F]"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Tambah Layanan
+            </Button>
           </div>
-          <Button
-            onClick={() => { resetForm(); setShowAddDialog(true); }}
-            data-testid="add-service-button"
-            className="bg-[#D4AF37] text-black hover:bg-[#B5952F]"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Tambah Layanan
-          </Button>
         </div>
-        
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-4">
+            <Package className="w-5 h-5 text-blue-400 mb-2" />
+            <p className="text-zinc-500 text-sm">Total Services</p>
+            <p className="text-2xl font-bold text-white">{services.length}</p>
+          </div>
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-4">
+            <Plus className="w-5 h-5 text-[#D4AF37] mb-2" />
+            <p className="text-zinc-500 text-sm">Harga Rata-rata</p>
+            <p className="text-xl font-bold text-white font-mono">
+              Rp {services.length > 0 ? Math.round(services.reduce((sum, s) => sum + s.price, 0) / services.length).toLocaleString('id-ID') : 0}
+            </p>
+          </div>
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-4">
+            <Package className="w-5 h-5 text-green-400 mb-2" />
+            <p className="text-zinc-500 text-sm">dengan BOM</p>
+            <p className="text-2xl font-bold text-white">{services.filter(s => s.bom && s.bom.length > 0).length}</p>
+          </div>
+          <div className="bg-[#18181b] border border-zinc-800 rounded-xl p-4">
+            <Plus className="w-5 h-5 text-purple-400 mb-2" />
+            <p className="text-zinc-500 text-sm">Kategori</p>
+            <p className="text-2xl font-bold text-white">{Object.keys(groupedServices).length}</p>
+          </div>
+        </div>
+
         {/* Services by Category */}
         {Object.keys(groupedServices).map((category) => (
           <div key={category} className="mb-8">
-            <h2 className="font-secondary text-2xl text-white mb-4 capitalize">{category}</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-white capitalize">{category}</h2>
+              <div className="h-1 w-16 bg-[#D4AF37] mt-2 rounded-full" />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {groupedServices[category].map((service) => (
                 <div
                   key={service.id}
-                  className="bg-[#121214] border border-zinc-800 rounded-sm p-6 hover:border-[#D4AF37]/30 transition-all"
+                  className="bg-[#18181b] border border-zinc-800 rounded-xl overflow-hidden hover:border-[#D4AF37]/50 transition-all group h-full flex flex-col"
                 >
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="font-semibold text-lg text-white">{service.name}</h3>
-                    <div className="flex gap-1">
-                      <Button
-                        onClick={() => handleEdit(service)}
-                        size="sm"
-                        variant="ghost"
-                        data-testid={`edit-service-${service.id}`}
-                        className="h-8 w-8 p-0 text-zinc-400 hover:text-white"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        onClick={() => setDeleteTarget(service)}
-                        size="sm"
-                        variant="ghost"
-                        data-testid={`delete-service-${service.id}`}
-                        className="h-8 w-8 p-0 text-zinc-400 hover:text-red-500"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  
-                  <p className="text-sm text-zinc-400 mb-4">{service.description || 'Tidak ada deskripsi'}</p>
-                  
-                  {/* BOM Info */}
-                  {service.bom && service.bom.length > 0 && (
-                    <div className="mb-4 p-2 bg-zinc-900/50 rounded">
-                      <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
-                        <Package className="w-3 h-3" />
-                        BOM ({service.bom.length} item)
-                      </p>
-                      <p className="text-xs text-zinc-400">
-                        {service.bom.map(b => `${b.inventory_name}`).join(', ')}
-                      </p>
+                  {/* Service Image */}
+                  {service.image_url && (
+                    <div className="h-48 bg-zinc-900 overflow-hidden">
+                      <img
+                        src={service.image_url}
+                        alt={service.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = 'https://via.placeholder.com/300x200.png?text=No+Image';
+                        }}
+                      />
                     </div>
                   )}
-                  
-                  <div className="flex items-center justify-between pt-4 border-t border-zinc-800">
-                    <div>
-                      <p className="text-xs text-zinc-500 mb-1">Harga</p>
-                      <p className="font-mono text-xl font-bold text-[#D4AF37]">
-                        Rp {service.price.toLocaleString('id-ID')}
-                      </p>
+
+                  <div className="p-4 flex flex-col flex-1">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-bold text-white mb-1">{service.name}</h3>
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          onClick={() => handleEdit(service)}
+                          size="sm"
+                          variant="ghost"
+                          data-testid={`edit-service-${service.id}`}
+                          className="h-8 w-8 p-0 text-zinc-400 hover:text-white hover:bg-zinc-800"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          onClick={() => setDeleteTarget(service)}
+                          size="sm"
+                          variant="ghost"
+                          data-testid={`delete-service-${service.id}`}
+                          className="h-8 w-8 p-0 text-zinc-400 hover:text-red-500 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-xs text-zinc-500 mb-1">Durasi</p>
-                      <p className="font-mono text-sm text-white">{service.duration_minutes} menit</p>
+
+                    <p className="text-sm text-zinc-500 mb-3 line-clamp-2">
+                      {service.description || 'Tidak ada deskripsi'}
+                    </p>
+
+                    {/* BOM Info */}
+                    {service.bom && service.bom.length > 0 && (
+                      <div className="mb-3 p-2 bg-zinc-900/50 rounded-lg border border-zinc-800">
+                        <p className="text-xs text-zinc-500 mb-1 flex items-center gap-1">
+                          <Package className="w-3 h-3" />
+                          BOM ({service.bom.length} item)
+                        </p>
+                        <p className="text-xs text-zinc-400">
+                          {service.bom.map(b => `${b.inventory_name}`).join(', ')}
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-3 border-t border-zinc-800 mt-auto">
+                      <div>
+                        <p className="text-xs text-zinc-500 mb-0.5">Harga</p>
+                        <p className="font-mono text-lg font-bold text-[#D4AF37]">
+                          Rp {service.price.toLocaleString('id-ID')}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-zinc-500 mb-0.5">Durasi</p>
+                        <p className="font-mono text-sm text-white">{service.duration_minutes} menit</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -408,16 +477,16 @@ export const ServicesPage = () => {
             </div>
           </div>
         ))}
-        
+
         {services.length === 0 && (
           <div className="text-center py-12 text-zinc-500">
             Belum ada layanan
           </div>
         )}
       </div>
-      
+
       {/* Add Service Dialog */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      < Dialog open={showAddDialog} onOpenChange={setShowAddDialog} >
         <DialogContent className="bg-[#121214] border-zinc-800 text-white max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-secondary text-2xl">Tambah Layanan</DialogTitle>
@@ -433,7 +502,7 @@ export const ServicesPage = () => {
           </Button>
         </DialogContent>
       </Dialog>
-      
+
       {/* Edit Service Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
         <DialogContent className="bg-[#121214] border-zinc-800 text-white max-w-lg max-h-[90vh] overflow-y-auto">
@@ -451,7 +520,7 @@ export const ServicesPage = () => {
           </Button>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Confirmation */}
       <DeleteConfirmDialog
         open={!!deleteTarget}

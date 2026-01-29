@@ -87,3 +87,151 @@ code {
         border-bottom-color: inherit;
     }
 }
+
+/* Custom Scrollbar Styles */
+@layer utilities {
+    .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .scrollbar-thin::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    
+    .scrollbar-thin::-webkit-scrollbar-track {
+        background: rgba(39, 39, 42, 0.5);
+        border-radius: 4px;
+    }
+    
+    .scrollbar-thin::-webkit-scrollbar-thumb {
+        background: rgba(212, 175, 55, 0.3);
+        border-radius: 4px;
+    }
+    
+    .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+        background: rgba(212, 175, 55, 0.5);
+    }
+}
+
+/* Glass Morphism Effect */
+@layer utilities {
+    .glass {
+        background: rgba(18, 18, 20, 0.7);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+    
+    .glass-gold {
+        background: rgba(212, 175, 55, 0.1);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(212, 175, 55, 0.2);
+    }
+}
+
+/* Smooth Animations */
+@layer utilities {
+    .animate-fade-in {
+        animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .animate-slide-up {
+        animation: slideUp 0.4s ease-out;
+    }
+    
+    @keyframes slideUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    
+    .animate-scale-in {
+        animation: scaleIn 0.2s ease-out;
+    }
+    
+    @keyframes scaleIn {
+        from {
+            opacity: 0;
+            transform: scale(0.95);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1);
+        }
+    }
+}
+
+/* Card Hover Effects */
+@layer components {
+    .card-hover {
+        @apply transition-all duration-300;
+    }
+    
+    .card-hover:hover {
+        @apply transform -translate-y-1 shadow-lg;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3),
+                    0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    }
+}
+
+/* Stock Alert Colors */
+@layer utilities {
+    .stock-high {
+        @apply text-green-500;
+    }
+    
+    .stock-medium {
+        @apply text-yellow-500;
+    }
+    
+    .stock-low {
+        @apply text-orange-500;
+    }
+    
+    .stock-critical {
+        @apply text-red-500;
+    }
+}
+
+/* Responsive Table Wrapper */
+@layer components {
+    .table-responsive {
+        @apply overflow-x-auto scrollbar-thin;
+    }
+    
+    .table-responsive table {
+        @apply min-w-full;
+    }
+}
+
+/* Touch-Friendly Buttons (Mobile) */
+@media (max-width: 768px) {
+    button, a {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+

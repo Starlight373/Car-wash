@@ -14,6 +14,8 @@ import { InventoryPage } from "./pages/InventoryPage";
 import { ServicesPage } from "./pages/ServicesPage";
 import { ProductsPage } from "./pages/ProductsPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { ExpensesPage } from "./pages/ExpensesPage";
+import { PromotionsPage } from "./pages/PromotionsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { isAuthenticated } from "./utils/auth";
@@ -24,12 +26,12 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
-          
-          <Route 
-            path="/login" 
-            element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <LoginPage />} 
+
+          <Route
+            path="/login"
+            element={isAuthenticated() ? <Navigate to="/dashboard" replace /> : <LoginPage />}
           />
-          
+
           <Route
             path="/dashboard"
             element={
@@ -38,7 +40,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/pos"
             element={
@@ -47,7 +49,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/shift"
             element={
@@ -56,7 +58,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/transactions"
             element={
@@ -65,7 +67,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/customers"
             element={
@@ -74,7 +76,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/memberships"
             element={
@@ -83,7 +85,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/inventory"
             element={
@@ -92,7 +94,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/services"
             element={
@@ -101,7 +103,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/products"
             element={
@@ -110,7 +112,7 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
           <Route
             path="/reports"
             element={
@@ -119,7 +121,25 @@ function App() {
               </ProtectedRoute>
             }
           />
-          
+
+          <Route
+            path="/expenses"
+            element={
+              <ProtectedRoute>
+                <ExpensesPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/promotions"
+            element={
+              <ProtectedRoute>
+                <PromotionsPage />
+              </ProtectedRoute>
+            }
+          />
+
           <Route
             path="/settings"
             element={
